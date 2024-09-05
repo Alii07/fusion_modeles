@@ -12,7 +12,7 @@ versement_mobilite = { '87005' : 1.80,  '87019': 1.80,  '87020': 1.80, '87038': 
 
 models_info = {
     'Mosselle': {
-        'model': tf.keras.models.load_model('./maladie/Moselle/maladie_Moselle.keras'),
+        'model': tf.keras.models.load_model('./Maladie/Moselle/maladie_Moselle.keras'),
         'numeric_cols': ['Brut_mensuel', 'Absences par Jour', 'Absences par Heure', 'Base Alsace Moselle',
                          'ASSIETTE CUM', 'SMIC M CUM', 'PLAFOND CUM', 'MALADIE CUM',
                          'MontantSal Alsace Moselle', 'Taux2 Alsace Moselle',
@@ -35,7 +35,7 @@ models_info = {
         'target_col': '7025 Fraud'
     },
     '6000': {
-        'model': tf.keras.models.load_model('./maladie/6000/maladie_6000.keras'),
+        'model': tf.keras.models.load_model('./Maladie/6000/maladie_6000.keras'),
         'numeric_cols': ['Absences par Jour',
        'Absences par Heure',  'PLAFOND CUM',
        'ASSIETTE CUM', 'MALADIE CUM', '6000Base', '6000Taux',
@@ -56,7 +56,7 @@ models_info = {
         'target_col': '6084 Fraud'
      },
     '7001': {
-        'model': tf.keras.models.load_model('./maladie/7001/maladie_7001.keras'),
+        'model': tf.keras.models.load_model('./Maladie/7001/maladie_7001.keras'),
         'numeric_cols': ['Matricule', 'Absences par Jour',
        'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CUM','MALADIE CUM',  '7001Base', '7001Taux 2',
        '7001Montant Pat.'],
@@ -64,7 +64,7 @@ models_info = {
         'target_col': '7001 Fraud'
     },
     '7002': {
-        'model': tf.keras.models.load_model('./maladie/7002/maladie_7002.keras'),
+        'model': tf.keras.models.load_model('./Maladie/7002/maladie_7002.keras'),
         'numeric_cols': ['Matricule', 'Absences par Jour',
        'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CUM',
        'MALADIE CUM',  '7002Base', '7002Taux 2', '7002Montant Pat.'],
