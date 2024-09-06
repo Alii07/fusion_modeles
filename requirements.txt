@@ -4,3 +4,8 @@ scikit-learn
 numpy
 tensorflow
 keras
+pyngrok
+joblib
+altair
+matplotlib
+kaleido

@@ -225,8 +225,23 @@ def detect_anomalies(df):
     report_content.seek(0)  # Revenir au début du buffer pour le téléchargement
     return report_content
 
+def charger_dictionnaire(fichier):
+        dictionnaire = {}
+        with open(fichier, 'r', encoding='utf-8') as f:
+            for ligne in f:
+                code, description = ligne.strip().split(' : ', 1)
+                dictionnaire[code] = description
+        return dictionnaire
+
 # Si un fichier est uploadé, lire le CSV et détecter les anomalies
 if csv_upload:
+    # Convertir le dictionnaire en DataFrame
+    dictionnaire = charger_dictionnaire('dictionnaire.txt')
+    df = pd.DataFrame(list(dictionnaire.items()), columns=['Code', 'Description'])
+
+    # Afficher le dictionnaire sous forme de tableau
+    st.title('Dictionnaire des Codes et Descriptions')
+    st.dataframe(df)
     try:
         # Essayer de lire avec l'encodage utf-8 et ignorer les lignes mal formatées
         df = pd.read_csv(csv_upload, encoding='utf-8', on_bad_lines='skip')
