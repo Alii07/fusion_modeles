@@ -236,7 +236,7 @@ def charger_dictionnaire(fichier):
 # Si un fichier est uploadé, lire le CSV et détecter les anomalies
 if csv_upload:
     # Convertir le dictionnaire en DataFrame
-    dictionnaire = charger_dictionnaire('dictionnaire.txt')
+    dictionnaire = charger_dictionnaire('./Dictionnaire.txt')
     df = pd.DataFrame(list(dictionnaire.items()), columns=['Code', 'Description'])
 
     # Afficher le dictionnaire sous forme de tableau
