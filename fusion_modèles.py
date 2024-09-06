@@ -175,7 +175,7 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         # Vérification de la forme des données
         expected_input_shape = info['model'].input_shape[-1]
         if X_test.shape[1] != expected_input_shape:
-            st.write(f"Erreur: le modèle attend {expected_input_shape} colonnes mais a reçu {X_test.shape[1]}.")
+            
             return
 
         # Prédiction et calcul des anomalies
@@ -220,7 +220,7 @@ def detect_anomalies(df):
         report_content.write(f"Le modèle {model_name} a détecté {count} anomalies.\n")
 
     for line_index, models in anomalies_report.items():
-        report_content.write(f"Le bulletin de paie à la ligne {line_index + 1} contient une anomalie dans les modèles : {', '.join(sorted(models))}\n")
+        report_content.write(f"Le bulletin de paie à la ligne {line_index + 1} contient une anomalie dans les cotisations : {', '.join(sorted(models))}\n")
 
     report_content.seek(0)  # Revenir au début du buffer pour le téléchargement
     return report_content
