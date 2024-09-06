@@ -9,6 +9,6 @@ joblib
 altair
 matplotlib
 kaleido
-camelot
+camelot-py
 pandas
 pypdf2
