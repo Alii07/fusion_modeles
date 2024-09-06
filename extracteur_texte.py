@@ -18,7 +18,7 @@ if pdf_upload :
     os.makedirs(path, exist_ok=True)
     os.makedirs(path2, exist_ok=True)
 
-    print(f"Les répertoires {path} ont été créés avec succès.")
+    st.write(f"Les répertoires {path} ont été créés avec succès.")
 
     """# **Extraction et enregistrement de la sélection :**"""
 
@@ -60,7 +60,7 @@ if pdf_upload :
 
             return extracted_tables
         except Exception as e:
-            print("Erreur lors de l'extraction des tableaux à partir du PDF:", str(e))
+            st.write("Erreur lors de l'extraction des tableaux à partir du PDF:", str(e))
             return None
 
     def transform_and_combine_tables(extracted_tables):
@@ -101,18 +101,18 @@ if pdf_upload :
             # Enregistrer le texte dans un fichier CSV
             df.to_csv(file_path, index=False, header=False, encoding='utf-8-sig')
 
-            print("Le texte extrait a été enregistré dans le fichier CSV avec succès.")
+            st.write("Le texte extrait a été enregistré dans le fichier CSV avec succès.")
         except Exception as e:
-            print("Erreur lors de l'enregistrement du texte dans le fichier CSV:", str(e))
+            st.write("Erreur lors de l'enregistrement du texte dans le fichier CSV:", str(e))
 
     def save_text_to_txt(text, file_path):
         try:
             # Enregistrer le texte dans un fichier texte
             with open(file_path, "w", encoding="utf-8") as file:
                 file.write(text)
-            print("Le texte extrait a été enregistré dans le fichier TXT avec succès.")
+            st.write("Le texte extrait a été enregistré dans le fichier TXT avec succès.")
         except Exception as e:
-            print("Erreur lors de l'enregistrement du texte dans le fichier TXT:", str(e))
+            st.write("Erreur lors de l'enregistrement du texte dans le fichier TXT:", str(e))
 
     def clean_text(text):
         # Remplacer les valeurs NaN par une chaîne vide
@@ -139,7 +139,7 @@ if pdf_upload :
             return tables_stream
 
         except Exception as e:
-            print(f"Erreur lors de l'extraction des tableaux à partir du PDF pour les pages {pages}: {str(e)}")
+            st.write(f"Erreur lors de l'extraction des tableaux à partir du PDF pour les pages {pages}: {str(e)}")
             return None
 
     def save_table_to_csv(df, file_path):
@@ -186,9 +186,9 @@ if pdf_upload :
             stream_output_csv_file = f"CSV3/_tableau_page_{page_number}.csv"
             save_table_to_csv(df_stream, stream_output_csv_file)
 
-    print("Les tableaux extraits ont été sauvegardés.")
+    st.write("Les tableaux extraits ont été sauvegardés.")
 
-    print(table.parsing_report)
+    st.write(table.parsing_report)
 
     """## **Filtrage des bulletins et des matricules parmi les tableaux extraits**"""
 
@@ -228,7 +228,7 @@ if pdf_upload :
     for file in filtered_files:
         shutil.copy(file, output_directory)
 
-    print("Fichiers CSV filtrés enregistrés dans CSV3/bulletins.")
+    st.write("Fichiers CSV filtrés enregistrés dans CSV3/bulletins.")
 
     import os
     import csv
@@ -279,7 +279,7 @@ if pdf_upload :
         for matricule in sorted(all_matricules):
             writer.writerow([matricule])
 
-    print(f"Matricules distinctes enregistrées dans {matricules_file_path}.")
+    st.write(f"Matricules distinctes enregistrées dans {matricules_file_path}.")
 
     """## **Division des tableaux pour ne garder que les bulletins de paie**
 
@@ -376,7 +376,7 @@ if pdf_upload :
                 for row in reader:
                     writer.writerow([row[i] for i in other_indices])
 
-    print("Fichiers CSV divisés et sauvegardés dans les répertoires appropriés.")
+    st.write("Fichiers CSV divisés et sauvegardés dans les répertoires appropriés.")
 
     """## **Structuration des bulletins de paie pour que chacun ne prenne plus qu'une ligne**"""
 
@@ -530,9 +530,9 @@ if pdf_upload :
     missing_codes = rubriques_codes_from_files - final_codes
 
     # Imprimer les codes manquants
-    print("Codes de rubriques manquants dans le dictionnaire :")
+    st.write("Codes de rubriques manquants dans le dictionnaire :")
     for code in missing_codes:
-        print(code)
+        st.write(code)
 
     # Écrire les erreurs dans un fichier texte
     errors_file_path = "errors.txt"
@@ -540,8 +540,8 @@ if pdf_upload :
         for error in errors:
             errors_file.write(f"{error}\n")
 
-    print(f"Dictionnaire des codes rubriques et libellés enregistré dans {dictionnaire_file_path}.")
-    print(f"Liste des erreurs enregistrée dans {errors_file_path}.")
+    st.write(f"Dictionnaire des codes rubriques et libellés enregistré dans {dictionnaire_file_path}.")
+    st.write(f"Liste des erreurs enregistrée dans {errors_file_path}.")
 
     import csv
     import os
@@ -659,7 +659,7 @@ if pdf_upload :
             except ValueError as e:
                 pass
 
-    print("Fichiers CSV restructurés et sauvegardés dans les répertoires appropriés.")
+    st.write("Fichiers CSV restructurés et sauvegardés dans les répertoires appropriés.")
 
     import os
     import csv
@@ -709,7 +709,7 @@ if pdf_upload :
                     writer.writeheader()
                     writer.writerows(data)
 
-                print(f"File processed and saved: {output_file_path}")
+                st.write(f"File processed and saved: {output_file_path}")
 
     # Directory containing the CSV files
     csv_directory = "CSV3/bulletins/bulletins_propres/bulletins_propres_structurés"
@@ -811,7 +811,7 @@ if pdf_upload :
             except ValueError as e:
                 pass
 
-    print("Fichiers CSV restructurés et sauvegardés dans les répertoires appropriés.")
+    st.write("Fichiers CSV restructurés et sauvegardés dans les répertoires appropriés.")
 
     """## **Combiner Matricules et bulletins**"""
 
@@ -869,16 +869,16 @@ if pdf_upload :
                 montant_pat_column = f'{code}Montant Pat.'
                 taux_2_column = f'{code} Taux 2'
 
-                print(f"Vérification pour le code: {code}")  # Debug: Affiche le code trouvé
+                st.write(f"Vérification pour le code: {code}")  # Debug: Affiche le code trouvé
 
                 if base_column in combined_headers and montant_pat_column in combined_headers:
-                    print(f"Trouvé: {base_column} et {montant_pat_column}")  # Debug: Affiche les colonnes trouvées
+                    st.write(f"Trouvé: {base_column} et {montant_pat_column}")  # Debug: Affiche les colonnes trouvées
                     base_idx = combined_headers.index(base_column)
                     montant_pat_idx = combined_headers.index(montant_pat_column)
 
                     # Ajouter la colonne Taux 2 si elle n'existe pas déjà
                     if taux_2_column not in combined_headers:
-                        print(f"Ajout de la colonne: {taux_2_column}")  # Debug: Indique qu'une colonne va être ajoutée
+                        st.write(f"Ajout de la colonne: {taux_2_column}")  # Debug: Indique qu'une colonne va être ajoutée
                         combined_headers.append(taux_2_column)
 
                     # Calculer la valeur de Taux 2 pour chaque ligne
@@ -898,9 +898,9 @@ if pdf_upload :
 
                     # Vérification que la colonne a bien été ajoutée
                     if taux_2_column in combined_headers:
-                        print(f"La colonne '{taux_2_column}' a été ajoutée avec succès.")
+                        st.write(f"La colonne '{taux_2_column}' a été ajoutée avec succès.")
                     else:
-                        print(f"Erreur : La colonne '{taux_2_column}' n'a pas été ajoutée.")
+                        st.write(f"Erreur : La colonne '{taux_2_column}' n'a pas été ajoutée.")
 
     def write_combined_csv(output_file, combined_headers, combined_data):
         with open(output_file, mode='w', newline='', encoding='utf-8') as outfile:
@@ -932,7 +932,7 @@ if pdf_upload :
     # Write the combined CSV
     write_combined_csv(output_file, combined_headers, combined_data)
 
-    print("Combined CSV file with Taux 2 columns has been saved.")
+    st.write("Combined CSV file with Taux 2 columns has been saved.")
 
     """## **Comptabilisation des absences**"""
 
@@ -960,7 +960,7 @@ if pdf_upload :
 
         # Sauvegarder le DataFrame dans un nouveau fichier CSV
         df.to_csv(output_path, index=False)
-        print(f"Le fichier a été sauvegardé avec les nouveaux en-têtes : {output_path}")
+        st.write(f"Le fichier a été sauvegardé avec les nouveaux en-têtes : {output_path}")
 
     input_directory = 'CSV3/bulletins/restes_tableaux'
 
@@ -1024,7 +1024,7 @@ if pdf_upload :
             writer = csv.writer(outfile)
             writer.writerows(report_data)
 
-        print(f"Rapport d'absences sauvegardé dans {output_file}")
+        st.write(f"Rapport d'absences sauvegardé dans {output_file}")
 
     # Définir le répertoire d'entrée et le fichier de sortie
     input_directory = 'CSV3/bulletins/restes_tableaux'
@@ -1083,7 +1083,7 @@ if pdf_upload :
         writer = csv.writer(file)
         writer.writerows(merged_data)
 
-    print(f"Tableau combiné avec les 3 premières matricules enregistré dans {output_file_path}.")
+    st.write(f"Tableau combiné avec les 3 premières matricules enregistré dans {output_file_path}.")
 
     import pandas as pd
 
@@ -1136,4 +1136,4 @@ if pdf_upload :
     # Sauvegarde du fichier final en CSV
     concatenated_df.to_csv(output_csv_path, index=False)
 
-    print(f"Fichier sauvegardé sous {output_csv_path}")
+    st.write(f"Fichier sauvegardé sous {output_csv_path}")
