@@ -242,10 +242,10 @@ def transform_to_single_line(file_path, required_elements, required_elements2):
     return combined_headers_row, values_row
 
 
-def extract_table_from_pdf(pdf_path):
+def extract_table_from_pdf(pdf_path, edge_tol=500, row_tol=5, pages='all'):
     try:
         # Extraire les tableaux à partir du PDF en utilisant la méthode 'stream'
-        tables = camelot.read_pdf(pdf_path, flavor='stream', pages='all')
+        tables = camelot.read_pdf(pdf_path, flavor='stream', edge_tol=edge_tol, row_tol=row_tol, pages=pages)
 
         # Initialiser une liste pour stocker les DataFrames extraits de chaque page
         extracted_tables = []
@@ -268,7 +268,7 @@ def extract_table_from_pdf(pdf_path):
                     # Vérifier si la cellule contient un numéro suivi de deux lettres
                     if isinstance(cell_content, str) and len(cell_content) >= 3 and cell_content[0].isdigit() and cell_content[1].isalpha() and cell_content[2].isalpha():
                         # Cas 1: Si la cellule suivante est vide, déplacer son contenu
-                        if j < len(df.columns) - 1 and pd.isnull(df.iloc[i, j+1]):
+                        if j < len(df.columns) - 1 and df.iloc[i, j+1] == '':
                             df.iloc[i, j+1] = cell_content[3:]
                         # Cas 2: Si la cellule suivante est remplie, créer une nouvelle colonne
                         elif j < len(df.columns) - 1:
@@ -279,8 +279,9 @@ def extract_table_from_pdf(pdf_path):
             extracted_tables.append(df)
 
         return extracted_tables
+
     except Exception as e:
-        print("Erreur lors de l'extraction des tableaux à partir du PDF:", str(e))
+        print(f"Erreur lors de l'extraction des tableaux : {e}")
         return None
 
 def check_for_mat(text):
@@ -995,7 +996,7 @@ for filename in os.listdir(clean_output_directory):
 
     print(f"Fichier sauvegardé sous {output_csv_path}")
 
-    st.download_button("Télécharger le fichier structuré :",concatenated_df, mime="table/csv" )
+    st.download_button("Télécharger le fichier structuré :",output_csv_path, mime="table/csv" )
 
 
 
