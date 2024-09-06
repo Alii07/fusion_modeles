@@ -240,7 +240,7 @@ if csv_upload:
     df = pd.DataFrame(list(dictionnaire.items()), columns=['Code', 'Description'])
 
     # Afficher le dictionnaire sous forme de tableau
-    st.title('Dictionnaire des Codes et Descriptions')
+    st.header('Dictionnaire des Codes et Descriptions')
     st.dataframe(df)
     try:
         # Essayer de lire avec l'encodage utf-8 et ignorer les lignes mal formatées
