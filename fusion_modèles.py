@@ -116,7 +116,7 @@ models_info = {
 
 }
 
-csv_upload = st.file_uploader("Entrez votre bulletin de paie (Format csv)", type = ['csv'])
+csv_upload = st.file_uploader("Entrez votre bulletin de paie (Format csv)", type=['csv'])
 
 def apply_versement_conditions(df):
     required_columns = ['Versement Mobilite Taux', 'Effectif', 'Code Insee', 'Versement mobilite Base', 'versement Mobilite Montant Pat.']
@@ -140,7 +140,6 @@ def apply_versement_conditions(df):
 
     return df
 
-# Fonction pour traiter le modèle (modèle machine learning à définir)
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
     df_filtered = df
 
@@ -160,31 +159,24 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         else:
             X_categorical = np.empty((len(df_inputs), 0))
 
-        # Extraction et nettoyage des colonnes numériques
         X_numeric = df_inputs[info['numeric_cols']].applymap(lambda x: str(x).replace(',', '.'))
-
-        # Convertir les colonnes en numérique, forcer les erreurs à NaN, puis gérer les NaN (par exemple, en les remplaçant par 0)
         X_numeric = X_numeric.apply(pd.to_numeric, errors='coerce').fillna(0)
-        # Normalisation
+        
         scaler = StandardScaler()
         X_numeric_scaled = scaler.fit_transform(X_numeric)
 
-        # Concatenation
         X_test = np.concatenate([X_categorical, X_numeric_scaled], axis=1)
 
-        # Vérification de la forme des données
         expected_input_shape = info['model'].input_shape[-1]
         if X_test.shape[1] != expected_input_shape:
-            
+            st.error(f"Erreur : Le modèle {model_name} attend une entrée de forme {expected_input_shape} mais a reçu {X_test.shape[1]}.")
             return
 
-        # Prédiction et calcul des anomalies
         y_pred_proba = info['model'].predict(X_test)
         y_pred = (y_pred_proba > 0.5).astype("int32")
 
         df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
 
-        # Compter les anomalies pour ce modèle
         num_anomalies = np.sum(y_pred)
         model_anomalies[model_name] = num_anomalies
 
@@ -192,27 +184,19 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
             if y_pred[df_filtered.index.get_loc(index)] == 1:
                 anomalies_report.setdefault(index, set()).add(model_name)
 
-# Fonction principale pour détecter les anomalies et générer le rapport
 def detect_anomalies(df):
     anomalies_report = {}
     model_anomalies = {}
 
-    # Appliquer les conditions de versement mobilité
     df = apply_versement_conditions(df)
 
-    # Vérifier les anomalies pour chaque modèle
     for model_name, info in models_info.items():
         process_model(df, model_name, info, anomalies_report, model_anomalies)
 
-    # Affichage du rapport à l'écran
     st.write("**Rapport d'anomalies détectées :**")
     total_anomalies = len(anomalies_report)
     st.write(f"**Total des lignes avec des anomalies :** {total_anomalies}")
 
-    #for model_name, count in model_anomalies.items():
-    #    st.write(f"Le modèle {model_name} a détecté **{count} anomalies**.")
-
-    # Générer un contenu pour le rapport
     report_content = io.StringIO()
     report_content.write("Rapport d'anomalies détectées :\n\n")
     report_content.write(f"Total des lignes avec des anomalies : {total_anomalies}\n")
@@ -220,43 +204,48 @@ def detect_anomalies(df):
         report_content.write(f"Le modèle {model_name} a détecté {count} anomalies.\n")
 
     for line_index, models in anomalies_report.items():
-        report_content.write(f"Le bulletin de paie à la ligne {line_index + 1} contient une anomalie dans les cotisations : {', '.join(sorted(models))}\n")
+        report_content.write(f"Ligne {line_index + 1} : anomalie dans les cotisations {', '.join(sorted(models))}\n")
 
-    report_content.seek(0)  # Revenir au début du buffer pour le téléchargement
+    report_content.seek(0)
     return report_content
 
 def charger_dictionnaire(fichier):
-        dictionnaire = {}
+    dictionnaire = {}
+    try:
         with open(fichier, 'r', encoding='utf-8') as f:
             for ligne in f:
                 code, description = ligne.strip().split(' : ', 1)
                 dictionnaire[code] = description
-        return dictionnaire
+    except FileNotFoundError:
+        st.error(f"Le fichier {fichier} n'a pas été trouvé.")
+    except Exception as e:
+        st.error(f"Erreur lors du chargement du dictionnaire : {e}")
+    return dictionnaire
 
-# Si un fichier est uploadé, lire le CSV et détecter les anomalies
 if csv_upload:
-    # Convertir le dictionnaire en DataFrame
     dictionnaire = charger_dictionnaire('./Dictionnaire.txt')
-    df = pd.DataFrame(list(dictionnaire.items()), columns=['Code', 'Description'])
+    df_dictionnaire = pd.DataFrame(list(dictionnaire.items()), columns=['Code', 'Description'])
 
-    # Afficher le dictionnaire sous forme de tableau
     st.header('Dictionnaire des Codes et Descriptions')
-    st.dataframe(df)
+    st.dataframe(df_dictionnaire)
+
     try:
-        # Essayer de lire avec l'encodage utf-8 et ignorer les lignes mal formatées
         df = pd.read_csv(csv_upload, encoding='utf-8', on_bad_lines='skip')
+    except pd.errors.EmptyDataError:
+        st.error("Le fichier CSV est vide ou mal formaté.")
     except UnicodeDecodeError:
-        # Si utf-8 échoue, essayer avec l'encodage 'ISO-8859-1' (latin1) et ignorer les lignes mal formatées
-        df = pd.read_csv(csv_upload, encoding='ISO-8859-1', on_bad_lines='skip')
-
-    df.columns = df.columns.str.strip()  # Nettoyer les noms de colonnes
-    report_content = detect_anomalies(df)
-
-    # Ajouter le bouton de téléchargement du fichier "anomalies_report.txt"
-    st.download_button(
-        label="Télécharger le rapport d'anomalies",
-        data=report_content.getvalue(),
-        file_name='anomalies_report.txt',
-        mime='text/plain'
-    )
-
+        try:
+            df = pd.read_csv(csv_upload, encoding='ISO-8859-1', on_bad_lines='skip')
+        except Exception as e:
+            st.error(f"Erreur lors de la lecture du fichier CSV : {e}")
+    except Exception as e:
+        st.error(f"Erreur inattendue lors de la lecture du fichier CSV : {e}")
+    else:
+        df.columns = df.columns.str.strip()
+        report_content = detect_anomalies(df)
+        st.download_button(
+            label="Télécharger le rapport d'anomalies",
+            data=report_content.getvalue(),
+            file_name='anomalies_report.txt',
+            mime='text/plain'
+        )
