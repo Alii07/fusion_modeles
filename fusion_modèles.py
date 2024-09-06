@@ -209,8 +209,8 @@ def detect_anomalies(df):
     total_anomalies = len(anomalies_report)
     st.write(f"**Total des lignes avec des anomalies :** {total_anomalies}")
 
-    for model_name, count in model_anomalies.items():
-        st.write(f"Le modèle {model_name} a détecté **{count} anomalies**.")
+    #for model_name, count in model_anomalies.items():
+    #    st.write(f"Le modèle {model_name} a détecté **{count} anomalies**.")
 
     # Générer un contenu pour le rapport
     report_content = io.StringIO()
