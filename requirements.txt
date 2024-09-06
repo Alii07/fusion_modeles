@@ -12,3 +12,4 @@ kaleido
 camelot-py
 pandas
 pypdf2
+ghostscript
