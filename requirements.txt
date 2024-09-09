@@ -10,6 +10,15 @@ altair
 matplotlib
 kaleido
 camelot-py
-pandas
 pypdf2
 ghostscript
+os
+re
+csv
+shutil
+PyPDF2 
+PdfReader
+random
+tempfile
+glob
+concurrent.futures

@@ -201,7 +201,7 @@ def detect_anomalies(df):
     report_content.write("Rapport d'anomalies détectées :\n\n")
     report_content.write(f"Total des lignes avec des anomalies : {total_anomalies}\n")
     for model_name, count in model_anomalies.items():
-        report_content.write(f"Le modèle {model_name} a détecté {count} anomalies.\n")
+        report_content.write(f"Un nombre de {count} anomalies a été détecté pour la cotisation {model_name}.\n")
 
     for line_index, models in anomalies_report.items():
         report_content.write(f"Ligne {line_index + 1} : anomalie dans les cotisations {', '.join(sorted(models))}\n")

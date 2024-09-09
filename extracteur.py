@@ -1,206 +1,214 @@
 import camelot
 import pandas as pd
 import os
+import re
+import csv
+import shutil
+from PyPDF2 import PdfReader
 import streamlit as st
+import random
+import tempfile
+import glob
+import streamlit as st
+import camelot
+import pandas as pd
+import os
+import tempfile
+import concurrent.futures
 
+def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
+    try:
+        tables_stream = camelot.read_pdf(
+            pdf_file_path,
+            flavor='stream',
+            pages=pages,
+            strip_text='\n',
+            edge_tol=edge_tol,
+            row_tol=row_tol
+        )
+        return tables_stream
 
-st.title("Extraction et structuration pdf :")
+    except Exception as e:
+        #st.write(f"Erreur lors de l'extraction des tableaux à partir du PDF pour les pages {pages}: {str(e)}")
+        return None
 
-pdf_upload = st.file_uploader("Entrez votre bulletin de paie (Format pdf)", type = ['pdf'])
+def save_table_to_csv(df, file_path):
+    df.to_csv(file_path, index=False, encoding='utf-8')
 
-if pdf_upload :
-    
-    pdf_path = pdf_upload
-    path = os.path.join("CSV3", "bulletins", "bulletins_propres", "bulletins_propres_structurés")
-    path2 = os.path.join("CSV3", "matricules")
+required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
+required_elements2 = ['Code','Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
 
-    # Créer les répertoires
-    os.makedirs(path, exist_ok=True)
-    os.makedirs(path2, exist_ok=True)
+code_libelle_dict = {}
+errors = []
+rubriques_codes_from_files = set()
+main_table_path = './merged_output.csv'
+cumul_path = './Cumul de janvier à juin.xlsx'
+info_salaries_path = './Information sur les salariés.xlsx'
+absences_path = './Absences.csv'
+final_output_csv_path = './final_output.csv'
 
-    st.write(f"Les répertoires {path} ont été créés avec succès.")
+filtered_files = []
+csv_directory = "./CSV3"
 
-    """# **Extraction et enregistrement de la sélection :**"""
+output_directory = os.path.join(csv_directory, "bulletins")
+os.makedirs(output_directory, exist_ok=True)
 
-    def extract_table_from_pdf(pdf_path):
-        try:
-            # Extraire les tableaux à partir du PDF en utilisant la méthode 'stream'
-            tables = camelot.read_pdf(pdf_path, flavor='stream', pages='all')
+clean_output_directory = os.path.join(output_directory, "bulletins_propres")
+os.makedirs(clean_output_directory, exist_ok=True)
 
-            # Initialiser une liste pour stocker les DataFrames extraits de chaque page
-            extracted_tables = []
+rest_output_directory = os.path.join(output_directory, "restes_tableaux")
+os.makedirs(rest_output_directory, exist_ok=True)
 
-            # Parcourir les tables extraites
-            for table in tables:
-                # Extraire le DataFrame de la table
-                df = table.df
+cleaner_output_directory = os.path.join(clean_output_directory, "bulletins_propres_structurés")
+os.makedirs(cleaner_output_directory, exist_ok=True)
 
-                # Remplacer les sauts de ligne (\n) par une chaîne vide
-                df.replace('\n', '', regex=True, inplace=True)
+output_directory = os.path.join(csv_directory, "bulletins")
+os.makedirs(output_directory, exist_ok=True)
 
-                # Remplacer les valeurs NaN par une chaîne vide
-                df.fillna('', inplace=True)
+output_directory_mat = os.path.join(csv_directory, "matricules")
+os.makedirs(output_directory_mat, exist_ok=True)
 
-                # Parcourir chaque cellule du DataFrame
-                for i in range(len(df)):
-                    for j in range(len(df.columns)):
-                        cell_content = df.iloc[i, j]
-                        # Vérifier si la cellule contient un numéro suivi de deux lettres
-                        if isinstance(cell_content, str) and len(cell_content) >= 3 and cell_content[0].isdigit() and cell_content[1].isalpha() and cell_content[2].isalpha():
-                            # Cas 1: Si la cellule suivante est vide, déplacer son contenu
-                            if j < len(df.columns) - 1 and pd.isnull(df.iloc[i, j+1]):
-                                df.iloc[i, j+1] = cell_content[3:]
-                            # Cas 2: Si la cellule suivante est remplie, créer une nouvelle colonne
-                            elif j < len(df.columns) - 1:
-                                df.insert(j+1, f'Colonne{j+1}_new', '')
-                                df.iloc[i, j+1] = cell_content[3:]
-
-                # Ajouter le DataFrame à la liste des tableaux extraits
-                extracted_tables.append(df)
-
-            return extracted_tables
-        except Exception as e:
-            st.write("Erreur lors de l'extraction des tableaux à partir du PDF:", str(e))
-            return None
-
-    def transform_and_combine_tables(extracted_tables):
-        # Initialiser une liste pour les lignes transformées
-        transformed_data = []
-
-        # Définir les colonnes de sortie
-        columns = [
-            'CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux Montant Pat.',
-            'Du', 'Date', 'Equipe', 'Hor.', 'Abs.'
-        ]
-
-        # Parcourir chaque DataFrame extrait
-        for df in extracted_tables:
-            for i in range(len(df)):
-                row = {}
-                row['CodeLibellé'] = df.iloc[i, 0]
-                for j, col_name in enumerate(columns[1:], 1):
-                    if j < len(df.columns):
-                        row[col_name] = df.iloc[i, j]
-                    else:
-                        row[col_name] = ''
-                transformed_data.append(row)
-
-        # Créer un DataFrame combiné à partir des lignes transformées
-        combined_df = pd.DataFrame(transformed_data, columns=columns)
-        return combined_df
+processed_directory = './CSV3/bulletins/bulletins_propres/bulletins_propres_structurés/processed'
+os.makedirs(processed_directory, exist_ok=True)
 
 
 
-    """# **Structuration :**"""
-
-    def save_table_to_csv(df, file_path):
-        try:
-            # Convertir le DataFrame en texte CSV
-            table_text = df.to_csv(index=False, header=False, encoding='utf-8-sig')
-
-            # Enregistrer le texte dans un fichier CSV
-            df.to_csv(file_path, index=False, header=False, encoding='utf-8-sig')
-
-            st.write("Le texte extrait a été enregistré dans le fichier CSV avec succès.")
-        except Exception as e:
-            st.write("Erreur lors de l'enregistrement du texte dans le fichier CSV:", str(e))
-
-    def save_text_to_txt(text, file_path):
-        try:
-            # Enregistrer le texte dans un fichier texte
-            with open(file_path, "w", encoding="utf-8") as file:
-                file.write(text)
-            st.write("Le texte extrait a été enregistré dans le fichier TXT avec succès.")
-        except Exception as e:
-            st.write("Erreur lors de l'enregistrement du texte dans le fichier TXT:", str(e))
-
-    def clean_text(text):
-        # Remplacer les valeurs NaN par une chaîne vide
-        cleaned_text = text.replace('NaN', '')
-
-        # Supprimer les sauts de ligne
-        cleaned_text = cleaned_text.replace('\n', ' ')
-
-        return cleaned_text
 
 
+def transform_and_combine_tables(extracted_tables):
 
-    def extract_table_from_pdf(pdf_path, edge_tol, row_tol, pages):
-        try:
-            # Utilisation de la méthode 'stream' avec les paramètres spécifiés
-            tables_stream = camelot.read_pdf(
-                pdf_path,
-                flavor='stream',
-                pages=pages,
-                strip_text='\n',  # Supprime les nouvelles lignes
-                edge_tol=edge_tol,  # Ajustement de la tolérance pour la détection des bords des colonnes
-                row_tol=row_tol     # Ajustement de la tolérance pour la séparation des lignes
-            )
-            return tables_stream
+    transformed_data = []
 
-        except Exception as e:
-            st.write(f"Erreur lors de l'extraction des tableaux à partir du PDF pour les pages {pages}: {str(e)}")
-            return None
+    columns = [
+        'CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux Montant Pat.',
+        'Du', 'Date', 'Equipe', 'Hor.', 'Abs.'
+    ]
 
-    def save_table_to_csv(df, file_path):
-        df.to_csv(file_path, index=False, encoding='utf-8')
+    for df in extracted_tables:
+        for i in range(len(df)):
+            row = {}
+            row['CodeLibellé'] = df.iloc[i, 0]
+            for j, col_name in enumerate(columns[1:], 1):
+                if j < len(df.columns):
+                    row[col_name] = df.iloc[i, j]
+                else:
+                    row[col_name] = ''
+            transformed_data.append(row)
+
+    combined_df = pd.DataFrame(transformed_data, columns=columns)
+    return combined_df
 
 
-    # Pages spécifiques où edge_tol=500 et row_tol=5
-    specific_pages = [81, 95, 101, 229, 365, 405, 417, 431, 446]
-    specific_pages_str = ','.join(map(str, specific_pages))
+def clean_text(text):
+    cleaned_text = text.replace('NaN', '')
 
-    # Extraire les tableaux pour les pages spécifiques
-    tables_stream = extract_table_from_pdf(pdf_path, edge_tol=500, row_tol=5, pages=specific_pages_str)
+    cleaned_text = cleaned_text.replace('\n', ' ')
 
-    if tables_stream is not None:
-        for i, table in enumerate(tables_stream):
-            page_number = table.parsing_report['page']
+    return cleaned_text
+# Fonction pour gérer le traitement d'une seule page (ou d'un groupe de pages)
+def process_pages(pdf_file_path, edge_tol, row_tol, page):
+    # Extraction initiale des tableaux
+    tables_stream = extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages=page)
 
-            # Extraire le DataFrame
-            df_stream = table.df
-            df_stream.replace('\n', '', regex=True, inplace=True)
-            df_stream.fillna('', inplace=True)
+    results = []
 
-            # Sauvegarder le DataFrame extrait
-            stream_output_csv_file = f"CSV3/_tableau_page_{page_number}.csv"
-            save_table_to_csv(df_stream, stream_output_csv_file)
+    if tables_stream is not None and len(tables_stream) > 0:
+        # Sélectionner le plus grand tableau (en nombre de cellules : lignes * colonnes)
+        largest_table = max(tables_stream, key=lambda t: t.df.shape[0] * t.df.shape[1])
 
-    # Extraire les tableaux pour le reste des pages avec edge_tol=300 et row_tol=3
-    tables_stream = extract_table_from_pdf(pdf_path, edge_tol=300, row_tol=3, pages='1-end')
+        # Extraire le DataFrame du plus grand tableau
+        df_stream = largest_table.df
+        df_stream.replace('\n', '', regex=True, inplace=True)
+        df_stream.fillna('', inplace=True)
+        page_number = largest_table.parsing_report['page']
 
-    if tables_stream is not None:
-        for i, table in enumerate(tables_stream):
-            page_number = table.parsing_report['page']
+        # Vérifier si 'Montant Sal.Taux' est dans les colonnes
+        if 'Montant Sal.Taux' in df_stream.iloc[0].values:
+            print(f"Colonne 'Montant Sal.Taux' détectée sur la page {page_number}. Ré-extraction avec les nouveaux paramètres.")
 
-            # Ignorer les pages spécifiques déjà traitées
-            if page_number in specific_pages:
-                continue
+            # Ré-extraire avec les nouveaux paramètres pour cette page
+            refined_tables = extract_table_from_pdf(pdf_file_path, edge_tol=500, row_tol=5, pages=str(page_number))
 
-            # Extraire le DataFrame
-            df_stream = table.df
-            df_stream.replace('\n', '', regex=True, inplace=True)
-            df_stream.fillna('', inplace=True)
+            # Si une ré-extraction réussie est effectuée, sélectionner à nouveau le plus grand tableau
+            if refined_tables is not None and len(refined_tables) > 0:
+                largest_table = max(refined_tables, key=lambda t: t.df.shape[0] * t.df.shape[1])
+                df_stream = largest_table.df
+                df_stream.replace('\n', '', regex=True, inplace=True)
+                df_stream.fillna('', inplace=True)
 
-            # Sauvegarder le DataFrame extrait
-            stream_output_csv_file = f"CSV3/_tableau_page_{page_number}.csv"
-            save_table_to_csv(df_stream, stream_output_csv_file)
+        # Ajouter le tableau sélectionné et son numéro de page aux résultats
+        results.append((page_number, df_stream))
 
-    st.write("Les tableaux extraits ont été sauvegardés.")
+    return results
 
-    st.write(table.parsing_report)
 
-    """## **Filtrage des bulletins et des matricules parmi les tableaux extraits**"""
+# Interface de Streamlit pour le téléversement de fichiers
+st.title("Extraction de tableaux à partir de PDF (optimisée avec barre de progression)")
+uploaded_pdf = st.file_uploader("Téléverser un fichier PDF", type=["pdf"])
+uploaded_file_1 = st.file_uploader("1er fichier excel", type=['xlsx', 'xls'])
+uploaded_file_2 = st.file_uploader("2nd fichier excel", type=['xlsx', 'xls'])
 
-    import csv
-    import os
-    import shutil
+if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 is not None:
+    # Crée un fichier temporaire pour enregistrer le PDF
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+        temp_pdf.write(uploaded_pdf.read())  # Écrire le contenu du fichier téléchargé dans le fichier temporaire
+        temp_pdf_path = temp_pdf.name  # Obtenir le chemin du fichier temporaire
 
-    # Définir les éléments requis
-    required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
-    required_elements2 = ['Code','Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
+    # Dossier de sortie pour les fichiers CSV
+    output_dir = "CSV3"
+    os.makedirs(output_dir, exist_ok=True)
 
-    # Fonction pour vérifier si la deuxième ligne contient les éléments requis
+    # Dictionnaire pour stocker les DataFrames pour le téléchargement
+    csv_files = {}
+
+    # Lecture du fichier PDF pour obtenir le nombre total de pages
+    reader = PdfReader(temp_pdf_path)
+    total_pages = len(reader.pages)
+
+    current_page_count = 0
+
+    # Afficher une barre de progression
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    # Taille du lot (nombre de pages à traiter en parallèle)
+    batch_size = 10  # Nombre de pages à traiter dans chaque lot (à ajuster en fonction de vos ressources)
+
+    # Limiter le nombre de processus simultanés pour éviter de surcharger le CPU
+    max_workers = 4  # Nombre maximal de processus simultanés
+
+    st.write(f"Extraction des tableaux pour toutes les {total_pages} pages...")
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Soumission des tâches pour chaque page
+        other_page_futures = {executor.submit(process_pages, temp_pdf_path, 300, 3, str(page)): page for page in range(1, total_pages + 1)}
+        
+        for future in concurrent.futures.as_completed(other_page_futures):
+            page = other_page_futures[future]
+            try:
+                results = future.result()
+                for page_number, df_stream in results:
+                    # Enregistrer le DataFrame extrait en CSV
+                    stream_output_csv_file = os.path.join(output_dir, f"table_page_{page_number}.csv")
+                    save_table_to_csv(df_stream, stream_output_csv_file)
+                    csv_files[f"table_page_{page_number}.csv"] = df_stream
+                
+                # Mettre à jour la barre de progression et l'état
+                current_page_count += 1
+                progress_value = current_page_count / total_pages
+                if progress_value > 1.0:
+                    progress_value = 1.0  # S'assurer que la progression ne dépasse pas 1.0
+                progress_bar.progress(progress_value)
+                status_text.text(f"Traitement : {min(current_page_count, total_pages)}/{total_pages} pages traitées")
+                
+            except Exception as e:
+                st.write(f"Erreur lors du traitement des pages {page}: {e}")
+
+    st.write("Extraction des tableaux terminée.")
+    # Ajouter des boutons de téléchargement pour chaque fichier CSV
+    #st.write("Télécharger les fichiers CSV extraits :")
+
+
     def check_second_line(file_path, required_elements):
         with open(file_path, mode='r', encoding='utf-8') as file:
             reader = csv.reader(file)
@@ -209,14 +217,13 @@ if pdf_upload :
             if second_line and all(elem in second_line for elem in required_elements):
                 return True
         return False
+    
+    def split_columns(header, second_line, required_elements):
+        required_indices = [i for i, col in enumerate(second_line) if col in required_elements]
+        other_indices = [i for i, col in enumerate(second_line) if col not in required_elements]
+        return required_indices, other_indices
 
-    # Parcourir les fichiers CSV extraits et vérifier leur deuxième ligne
-    filtered_files = []
-    csv_directory = "CSV3"
-    output_directory = os.path.join(csv_directory, "bulletins")
 
-    # Créer le sous-répertoire si nécessaire
-    os.makedirs(output_directory, exist_ok=True)
 
     for filename in os.listdir(csv_directory):
         if filename.endswith(".csv"):
@@ -230,16 +237,9 @@ if pdf_upload :
 
     st.write("Fichiers CSV filtrés enregistrés dans CSV3/bulletins.")
 
-    import os
-    import csv
-    import shutil
-    from PyPDF2 import PdfReader
-
-    # Fonction pour vérifier si le texte contient "Mat:"
     def check_for_mat(text):
         return 'Mat:' in text
 
-    # Fonction pour extraire les matricules du texte
     def extract_matricules(text):
         matricules = set()
         for line in text.split('\n'):
@@ -253,11 +253,7 @@ if pdf_upload :
                 matricules.add(matricule)
         return matricules
 
-    # Chemin du fichier PDF contenant les bulletins de paie
-    pdf_file_path = "/content/drive/MyDrive/Bulletin.pdf"
-
-    # Vérifier si le fichier PDF contient "Mat:" et extraire les matricules
-    reader = PdfReader(pdf_file_path)
+    reader = PdfReader(uploaded_pdf)
     all_matricules = set()
 
     for page in reader.pages:
@@ -265,13 +261,8 @@ if pdf_upload :
         if check_for_mat(text):
             all_matricules.update(extract_matricules(text))
 
-    # Créer le répertoire pour stocker les matricules
-    csv_directory = "CSV3"
-    output_directory = os.path.join(csv_directory, "matricules")
-    os.makedirs(output_directory, exist_ok=True)
 
-    # Enregistrer les matricules distinctes dans un nouveau fichier CSV
-    matricules_file_path = os.path.join(output_directory, "matricules.csv")
+    matricules_file_path = os.path.join(output_directory_mat, "matricules.csv")
     with open(matricules_file_path, mode='w', encoding='utf-8', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Matricule"])
@@ -281,34 +272,6 @@ if pdf_upload :
 
     st.write(f"Matricules distinctes enregistrées dans {matricules_file_path}.")
 
-    """## **Division des tableaux pour ne garder que les bulletins de paie**
-
-    """
-
-    import csv
-    import os
-
-    # Définir les éléments requis
-    required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
-    required_elements2 = ['Code', 'Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
-
-    # Fonction pour vérifier si la deuxième ligne contient les éléments requis
-    def check_second_line(file_path, required_elements):
-        with open(file_path, mode='r', encoding='utf-8') as file:
-            reader = csv.reader(file)
-            next(reader)  # Ignore la première ligne
-            second_line = next(reader, None)  # Lire la deuxième ligne
-            if second_line and all(elem in second_line for elem in required_elements):
-                return True
-        return False
-
-    # Fonction pour diviser les colonnes en deux groupes
-    def split_columns(header, second_line, required_elements):
-        required_indices = [i for i, col in enumerate(second_line) if col in required_elements]
-        other_indices = [i for i, col in enumerate(second_line) if col not in required_elements]
-        return required_indices, other_indices
-
-    # Fonction pour renommer la deuxième occurrence de "Taux" en "Taux 2"
     def rename_second_taux(file_path):
         with open(file_path, mode='r', encoding='utf-8') as infile:
             reader = csv.reader(infile)
@@ -324,16 +287,15 @@ if pdf_upload :
             writer = csv.writer(outfile)
             writer.writerows(lines)
 
-    # Parcourir les fichiers CSV extraits et vérifier leur deuxième ligne
-    filtered_files = []
-    csv_directory = "CSV3"
-    output_directory = os.path.join(csv_directory, "bulletins")
-    clean_output_directory = os.path.join(output_directory, "bulletins_propres")
-    rest_output_directory = os.path.join(output_directory, "restes_tableaux")
 
-    # Créer les sous-répertoires si nécessaire
-    os.makedirs(clean_output_directory, exist_ok=True)
-    os.makedirs(rest_output_directory, exist_ok=True)
+    def check_second_line(file_path, required_elements):
+        with open(file_path, mode='r', encoding='utf-8') as file:
+            reader = csv.reader(file)
+            next(reader)  # Ignore la première ligne
+            second_line = next(reader, None)  # Lire la deuxième ligne
+            if second_line and all(elem in second_line for elem in required_elements):
+                return True
+        return False
 
     for filename in os.listdir(csv_directory):
         if filename.endswith(".csv"):
@@ -342,7 +304,6 @@ if pdf_upload :
                 rename_second_taux(file_path)
                 filtered_files.append(file_path)
 
-    # Diviser les tableaux et sauvegarder les résultats dans les répertoires appropriés
     for file in filtered_files:
         with open(file, mode='r', encoding='utf-8') as infile:
             reader = csv.reader(infile)
@@ -378,12 +339,31 @@ if pdf_upload :
 
     st.write("Fichiers CSV divisés et sauvegardés dans les répertoires appropriés.")
 
-    """## **Structuration des bulletins de paie pour que chacun ne prenne plus qu'une ligne**"""
+    # Fonction pour diviser les colonnes en deux groupes
+    def split_columns(header, second_line, required_elements):
+        required_indices = [i for i, col in enumerate(second_line) if col in required_elements]
+        other_indices = [i for i, col in enumerate(second_line) if col not in required_elements]
+        return required_indices, other_indices
 
-    import csv
-    import os
+    # Fonction pour renommer la deuxième occurrence de "Taux" en "Taux 2"
+    def rename_second_taux(file_path):
+        with open(file_path, mode='r', encoding='utf-8') as infile:
+            reader = csv.reader(infile)
+            lines = list(reader)
 
-    # Fonction pour transformer le tableau en deux lignes
+        if len(lines) > 1:
+            second_line = lines[1]
+            taux_indices = [i for i, col in enumerate(second_line) if col == 'Taux']
+            if len(taux_indices) > 1:
+                second_line[taux_indices[1]] = 'Taux 2'
+
+        with open(file_path, mode='w', newline='', encoding='utf-8') as outfile:
+            writer = csv.writer(outfile)
+            writer.writerows(lines)
+
+
+
+
     def transform_to_two_lines(file_path, required_elements, required_elements2):
         headers_row = []
         values_row = []
@@ -469,21 +449,8 @@ if pdf_upload :
 
         return [headers_row, values_row, code_libelle_dict, errors]
 
-    # Répertoires
-    csv_directory = "CSV3"
-    output_directory = os.path.join(csv_directory, "bulletins")
-    clean_output_directory = os.path.join(output_directory, "bulletins_propres")
-    cleaner_output_directory = os.path.join(output_directory, "bulletins_propres_structurés")
 
-    # Créer les sous-répertoires si nécessaire
-    os.makedirs(cleaner_output_directory, exist_ok=True)
 
-    # Dictionnaire pour stocker les correspondances code rubrique : libellé
-    code_libelle_dict = {}
-    errors = []
-    rubriques_codes_from_files = set()  # Set pour stocker tous les codes de rubriques des fichiers
-
-    # Diviser les tableaux et sauvegarder les résultats dans les répertoires appropriés
     for filename in os.listdir(clean_output_directory):
         if filename.endswith(".csv") and filename != "bulletins_propres":
             file_path = os.path.join(clean_output_directory, filename)
@@ -510,29 +477,23 @@ if pdf_upload :
             except ValueError as e:
                 errors.append(f"Erreur dans le fichier {filename}: {e}")
 
-    # Trier le dictionnaire par les codes rubriques
     sorted_code_libelle = sorted(code_libelle_dict.items())
 
-    # Écrire le dictionnaire trié dans un fichier texte
-    dictionnaire_file_path = "Dictionnaire.txt"
+    dictionnaire_file_path = "Dictionnaire2.txt"
     with open(dictionnaire_file_path, mode='w', encoding='utf-8') as dict_file:
         for code, libelle in sorted_code_libelle:
             dict_file.write(f"{code} : {libelle}\n")
 
-    # Charger les codes du dictionnaire final
     final_codes = set()
     with open(dictionnaire_file_path, mode='r', encoding='utf-8') as dict_file:
         for line in dict_file:
             code = line.split(':')[0].strip()
             final_codes.add(code)
 
-    # Extraire les codes de rubriques qui ne sont pas dans le dictionnaire
     missing_codes = rubriques_codes_from_files - final_codes
 
     # Imprimer les codes manquants
-    st.write("Codes de rubriques manquants dans le dictionnaire :")
-    for code in missing_codes:
-        st.write(code)
+    #st.write("Codes de rubriques manquants dans le dictionnaire :")
 
     # Écrire les erreurs dans un fichier texte
     errors_file_path = "errors.txt"
@@ -540,16 +501,19 @@ if pdf_upload :
         for error in errors:
             errors_file.write(f"{error}\n")
 
-    st.write(f"Dictionnaire des codes rubriques et libellés enregistré dans {dictionnaire_file_path}.")
-    st.write(f"Liste des erreurs enregistrée dans {errors_file_path}.")
-
-    import csv
-    import os
-    import random
+    #st.write(f"Dictionnaire des codes rubriques et libellés enregistré dans {dictionnaire_file_path}.")
+    #st.write(f"Liste des erreurs enregistrée dans {errors_file_path}.")
 
     # Fonction pour générer un taux selon une certaine logique
     def generer_taux_2(taux_initial):
         return round(random.uniform(taux_initial - 0.2, taux_initial + 0.2), 2)
+
+    # Fonction pour vérifier et convertir une valeur en float, en gérant les valeurs vides
+    def safe_float_conversion(value):
+        try:
+            return float(value)
+        except ValueError:
+            return None  # Retourne None si la valeur ne peut pas être convertie
 
     # Fonction pour transformer le tableau en deux lignes et ajouter 'Taux 2'
     def transform_to_two_lines(file_path, required_elements, required_elements2):
@@ -623,29 +587,21 @@ if pdf_upload :
                         col_index = second_line.index(col)
                         values_row[rubrique_index + i] = row[col_index]
 
-                # Générer et ajouter la valeur pour 'Taux 2'
-                taux_2_value = generer_taux_2(float(values_row[rubrique_index + 1]))  # 'Taux 2' basé sur 'Taux'
-                values_row[rubrique_index + 3] = taux_2_value  # Placer 'Taux 2' dans la bonne colonne
+                # Générer et ajouter la valeur pour 'Taux 2' si 'Taux' est valide
+                taux_value = safe_float_conversion(values_row[rubrique_index + 1])  # 'Taux'
+                if taux_value is not None:  # Vérifier que 'Taux' n'est pas vide ou invalide
+                    taux_2_value = generer_taux_2(taux_value)  # Générer 'Taux 2'
+                    values_row[rubrique_index + 3] = taux_2_value  # Placer 'Taux 2' dans la bonne colonne
 
         return [headers_row, values_row]
 
-    # Répertoires
-    csv_directory = "CSV3"
-    output_directory = os.path.join(csv_directory, "bulletins")
-    clean_output_directory = os.path.join(output_directory, "bulletins_propres")
-    cleaner_output_directory = os.path.join(clean_output_directory, "bulletins_propres_structurés")
-
-    # Créer les sous-répertoires si nécessaire
-    os.makedirs(clean_output_directory, exist_ok=True)
-
-    # Diviser les tableaux et sauvegarder les résultats dans les répertoires appropriés
     for filename in os.listdir(clean_output_directory):
         if filename.endswith(".csv") and filename != "bulletins_propres":
             file_path = os.path.join(clean_output_directory, filename)
 
             # Transformer les données en deux lignes
-            required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']
-            required_elements2 = ['Code', 'Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']
+            required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Montant Pat.']
+            required_elements2 = ['Code', 'Libellé', 'Base', 'Taux', 'Montant Sal.', 'Montant Pat.']
 
             try:
                 headers_row, values_row = transform_to_two_lines(file_path, required_elements, required_elements2)
@@ -656,13 +612,13 @@ if pdf_upload :
                     writer = csv.writer(clean_outfile)
                     writer.writerow(headers_row)
                     writer.writerow(values_row)
+                    #print(f"Fichier CSV restructuré et sauvegardé: {clean_file_path}")
             except ValueError as e:
-                pass
+                st.write(f"Erreur: {e}")
+
 
     st.write("Fichiers CSV restructurés et sauvegardés dans les répertoires appropriés.")
 
-    import os
-    import csv
 
     def convert_to_float(value):
         if value:
@@ -709,115 +665,9 @@ if pdf_upload :
                     writer.writeheader()
                     writer.writerows(data)
 
-                st.write(f"File processed and saved: {output_file_path}")
+                #st.write(f"File processed and saved: {output_file_path}")
 
-    # Directory containing the CSV files
-    csv_directory = "CSV3/bulletins/bulletins_propres/bulletins_propres_structurés"
-
-    # Process the files
-    process_csv_files(csv_directory)
-
-    import csv
-    import os
-
-    # Fonction pour transformer le tableau en une seule ligne
-    def transform_to_single_line(file_path, required_elements, required_elements2):
-        combined_headers_row = []
-        values_row = []
-
-        with open(file_path, mode='r', encoding='utf-8') as infile:
-            reader = csv.reader(infile)
-            next(reader)  # Lire la première ligne (en-tête)
-            second_line = next(reader)  # Lire la deuxième ligne (colonnes requises)
-
-            # Vérifier la présence des colonnes 'Code' et 'Libellé'
-            code_index = second_line.index('Code') if 'Code' in second_line else None
-            libelle_index = second_line.index('Libellé') if 'Libellé' in second_line else None
-            codelibelle_index = second_line.index('CodeLibellé') if 'CodeLibellé' in second_line else None
-
-            # Rewind the reader to read the file again for values
-            infile.seek(0)
-            next(reader)  # Ignore the first line (header)
-            next(reader)  # Ignore the second line (column names)
-
-            # Remplir les lignes avec les données correspondantes
-            for row in reader:
-                if codelibelle_index is not None:
-                    code_libelle = row[codelibelle_index]
-                    if code_libelle and code_libelle[0].isdigit():
-                        code_libelle = code_libelle[:4]  # Tronquer à 4 caractères si commence par un chiffre
-                elif code_index is not None and libelle_index is not None:
-                    code_libelle = f"{row[code_index]}{row[libelle_index]}"
-                    if code_libelle and code_libelle[0].isdigit():
-                        code_libelle = code_libelle[:4]  # Tronquer à 4 caractères si commence par un chiffre
-                else:
-                    raise ValueError("Les colonnes 'Code' et 'Libellé' ou 'CodeLibellé' sont manquantes")
-
-                # Ajouter les rubriques aux en-têtes combinés
-                for col in ['Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']:
-                    if col in second_line:
-                        combined_headers_row.append(f"{code_libelle} {col}")
-                        col_index = second_line.index(col)
-                        values_row.append(row[col_index])
-                    elif col == 'Taux 2':
-                        # Calculer "XXXX Taux 2" s'il n'existe pas
-                        base_index = second_line.index('Base') if 'Base' in second_line else None
-                        montant_pat_index = second_line.index('Montant Pat.') if 'Montant Pat.' in second_line else None
-
-                        if base_index is not None and montant_pat_index is not None:
-                            base_value = float(row[base_index]) if row[base_index] else None
-                            montant_pat_value = float(row[montant_pat_index]) if row[montant_pat_index] else None
-
-                            if base_value and montant_pat_value:
-                                taux2_value = base_value / montant_pat_value if montant_pat_value != 0 else None
-                                combined_headers_row.append(f"{code_libelle} Taux 2")
-                                values_row.append(taux2_value)
-
-                # Ajouter le reste des valeurs
-                if 'Montant Pat.' in second_line:
-                    combined_headers_row.append(f"{code_libelle} Montant Pat.")
-                    montant_pat_index = second_line.index('Montant Pat.')
-                    values_row.append(row[montant_pat_index])
-
-        return combined_headers_row, values_row
-
-    # Répertoires
-    csv_directory = "CSV3"
-    output_directory = os.path.join(csv_directory, "bulletins")
-    clean_output_directory = os.path.join(output_directory, "bulletins_propres")
-    cleaner_output_directory = os.path.join(clean_output_directory, "bulletins_propres_structurés")
-
-    # Créer les sous-répertoires si nécessaire
-    os.makedirs(cleaner_output_directory, exist_ok=True)
-
-    # Diviser les tableaux et sauvegarder les résultats dans les répertoires appropriés
-    for filename in os.listdir(clean_output_directory):
-        if filename.endswith(".csv") and filename != "bulletins_propres":
-            file_path = os.path.join(clean_output_directory, filename)
-
-            # Transformer les données en une seule ligne
-            required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']
-            required_elements2 = ['Code', 'Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']
-
-            try:
-                combined_headers_row, values_row = transform_to_single_line(file_path, required_elements, required_elements2)
-
-                # Sauvegarder le fichier transformé
-                clean_file_path = os.path.join(cleaner_output_directory, "restructured_" + filename)
-                with open(clean_file_path, mode='w', newline='', encoding='utf-8') as clean_outfile:
-                    writer = csv.writer(clean_outfile)
-                    writer.writerow(combined_headers_row)
-                    writer.writerow(values_row)
-            except ValueError as e:
-                pass
-
-    st.write("Fichiers CSV restructurés et sauvegardés dans les répertoires appropriés.")
-
-    """## **Combiner Matricules et bulletins**"""
-
-    import csv
-    import os
-    import re
+    process_csv_files(cleaner_output_directory)
 
     def read_csv(file_path):
         with open(file_path, mode='r', encoding='utf-8') as infile:
@@ -869,16 +719,16 @@ if pdf_upload :
                 montant_pat_column = f'{code}Montant Pat.'
                 taux_2_column = f'{code} Taux 2'
 
-                st.write(f"Vérification pour le code: {code}")  # Debug: Affiche le code trouvé
+                #st.write(f"Vérification pour le code: {code}")  # Debug: Affiche le code trouvé
 
                 if base_column in combined_headers and montant_pat_column in combined_headers:
-                    st.write(f"Trouvé: {base_column} et {montant_pat_column}")  # Debug: Affiche les colonnes trouvées
+                    #st.write(f"Trouvé: {base_column} et {montant_pat_column}")  # Debug: Affiche les colonnes trouvées
                     base_idx = combined_headers.index(base_column)
                     montant_pat_idx = combined_headers.index(montant_pat_column)
 
                     # Ajouter la colonne Taux 2 si elle n'existe pas déjà
                     if taux_2_column not in combined_headers:
-                        st.write(f"Ajout de la colonne: {taux_2_column}")  # Debug: Indique qu'une colonne va être ajoutée
+                        #st.write(f"Ajout de la colonne: {taux_2_column}")  # Debug: Indique qu'une colonne va être ajoutée
                         combined_headers.append(taux_2_column)
 
                     # Calculer la valeur de Taux 2 pour chaque ligne
@@ -897,10 +747,6 @@ if pdf_upload :
                             row[combined_headers.index(taux_2_column)] = taux_2_value
 
                     # Vérification que la colonne a bien été ajoutée
-                    if taux_2_column in combined_headers:
-                        st.write(f"La colonne '{taux_2_column}' a été ajoutée avec succès.")
-                    else:
-                        st.write(f"Erreur : La colonne '{taux_2_column}' n'a pas été ajoutée.")
 
     def write_combined_csv(output_file, combined_headers, combined_data):
         with open(output_file, mode='w', newline='', encoding='utf-8') as outfile:
@@ -910,12 +756,9 @@ if pdf_upload :
 
     def extract_page_number(filename):
         match = re.search(r'_page_(\d+)', filename)
-        return int(match.group(1)) if match else float('inf')  # Utiliser infini si pas de numéro de page
+        return int(match.group(1)) if match else float('inf')
 
-    input_directory = 'CSV3/bulletins/bulletins_propres/bulletins_propres_structurés/processed'
-
-    # Paths to the input CSV files
-    input_files = [os.path.join(input_directory, filename) for filename in os.listdir(input_directory) if filename.endswith('.csv')]
+    input_files = [os.path.join(processed_directory, filename) for filename in os.listdir(processed_directory) if filename.endswith('.csv')]
 
     # Sort the input files based on the page number
     input_files.sort(key=lambda f: extract_page_number(f))
@@ -933,10 +776,6 @@ if pdf_upload :
     write_combined_csv(output_file, combined_headers, combined_data)
 
     st.write("Combined CSV file with Taux 2 columns has been saved.")
-
-    """## **Comptabilisation des absences**"""
-
-    import pandas as pd
 
     def update_headers(file_path, output_path):
         # Charger le fichier CSV
@@ -960,18 +799,13 @@ if pdf_upload :
 
         # Sauvegarder le DataFrame dans un nouveau fichier CSV
         df.to_csv(output_path, index=False)
-        st.write(f"Le fichier a été sauvegardé avec les nouveaux en-têtes : {output_path}")
+        #st.write(f"Le fichier a été sauvegardé avec les nouveaux en-têtes : {output_path}")
 
-    input_directory = 'CSV3/bulletins/restes_tableaux'
-
-    for file_path in os.listdir(input_directory) :
+    for file_path in os.listdir(rest_output_directory) :
         if filename.endswith('.csv'):
-            file_path_upd= os.path.join(input_directory,file_path)
+            file_path_upd= os.path.join(rest_output_directory,file_path)
             update_headers(file_path_upd,file_path_upd)
 
-    import csv
-    import os
-    import re
 
     def process_csv_file(file_path):
         absences_par_jour = 0
@@ -1024,21 +858,14 @@ if pdf_upload :
             writer = csv.writer(outfile)
             writer.writerows(report_data)
 
-        st.write(f"Rapport d'absences sauvegardé dans {output_file}")
+        #st.write(f"Rapport d'absences sauvegardé dans {output_file}")
 
-    # Définir le répertoire d'entrée et le fichier de sortie
-    input_directory = 'CSV3/bulletins/restes_tableaux'
-    output_file = 'Absences.csv'
+
+    absence_output_file = 'Absences.csv'
 
     # Générer le rapport d'absences
-    generate_absences_report(input_directory, output_file)
+    generate_absences_report(rest_output_directory, absence_output_file)
 
-    """## **Fusion de tous les fichiers finaux**"""
-
-    import csv
-    import os
-
-    # Chemins des fichiers
     matricules_file_path = "CSV3/matricules/matricules.csv"
     combined_output_file_path = "combined_output.csv"
     output_file_path = "merged_output.csv"
@@ -1085,19 +912,10 @@ if pdf_upload :
 
     st.write(f"Tableau combiné avec les 3 premières matricules enregistré dans {output_file_path}.")
 
-    import pandas as pd
-
-    # Chemins des fichiers
-    main_table_path = 'merged_output.csv'
-    cumul_path = '/content/drive/MyDrive/Cumul de janvier à juin.xlsx'
-    info_salaries_path = '/content/drive/MyDrive/Information sur les salariés.xlsx'
-    absences_path = 'Absences.csv'
-    output_csv_path = 'final_output.csv'
-
     # Chargement des fichiers
     main_table = pd.read_csv(main_table_path)
-    cumul_data = pd.read_excel(cumul_path)
-    info_salaries_data = pd.read_excel(info_salaries_path)
+    cumul_data = pd.read_excel(uploaded_file_1, engine='openpyxl')
+    info_salaries_data = pd.read_excel(uploaded_file_2, engine='openpyxl')
     absences_data = pd.read_csv(absences_path)
 
     # S'assurer que la colonne 'Matricule' est de type chaîne dans tous les fichiers
@@ -1134,6 +952,18 @@ if pdf_upload :
     concatenated_df = pd.concat([final_df, absences_data], axis=1)
 
     # Sauvegarde du fichier final en CSV
-    concatenated_df.to_csv(output_csv_path, index=False)
+    concatenated_df.to_csv(final_output_csv_path, index=False)
 
-    st.write(f"Fichier sauvegardé sous {output_csv_path}")
+    csv_data = concatenated_df.to_csv(index=False).encode('utf-8')
+
+    st.write(f"Fichier sauvegardé sous {final_output_csv_path}")
+
+    st.download_button( label=f"Download fichier restructuré", data= csv_data, file_name="Fichier restrucuturé.csv", mime="text/csv" )
+
+    csv_files_to_delete = glob.glob(os.path.join(output_dir, "**", "*.csv"), recursive=True)
+
+    for csv_file in csv_files_to_delete:
+        try:
+            os.remove(csv_file)
+        except Exception as e:
+            st.write(f"Erreur lors de la suppression du fichier {csv_file}: {e}")
