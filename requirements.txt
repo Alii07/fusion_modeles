@@ -9,6 +9,7 @@ joblib
 altair
 matplotlib
 kaleido
-camelot-py[cv]  # Installe camelot-py avec les dépendances nécessaires pour l'analyse d'images (cv2)
+camelot-py[cv]  # Camelot avec OpenCV, mais la dépendance sera satisfaite par opencv-python-headless
 pypdf
 ghostscript
+opencv-python-headless  # Remplace cv2 par une version plus légère d'OpenCV adaptée aux environnements serveurs
