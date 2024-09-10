@@ -143,7 +143,7 @@ def process_pages(pdf_file_path, edge_tol, row_tol, page):
 
 
 # Interface de Streamlit pour le téléversement de fichiers
-st.title("Extraction de tableaux à partir de PDF (optimisée avec barre de progression)")
+st.title("Extraction de bulletins de paie à partir de PDF")
 uploaded_pdf = st.file_uploader("Téléverser un fichier PDF", type=["pdf"])
 uploaded_file_1 = st.file_uploader("1er fichier excel", type=['xlsx', 'xls'])
 uploaded_file_2 = st.file_uploader("2nd fichier excel", type=['xlsx', 'xls'])
