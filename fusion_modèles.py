@@ -71,12 +71,12 @@ models_info = {
         'categorical_cols': [],
         'target_col': '7002 Fraud'
     },
-    '7010': {
-            'model': tf.keras.models.load_model('./Reste/7010.keras'),
-            'numeric_cols': ['7010Taux', '7010Taux 2', '7010Base'],
-            'categorical_cols': [],
-            'target_col': '7010 Fraud'
-    },
+    #'7010': {
+    #        'model': tf.keras.models.load_model('./Reste/7010.keras'),
+    #        'numeric_cols': ['7010Taux', '7010Taux 2', '7010Base'],
+    #        'categorical_cols': [],
+    #        'target_col': '7010 Fraud'
+    #},
     '7020': {
             'model': tf.keras.models.load_model('./FNAL/7020.keras'),
             'numeric_cols': ['Effectif', 'ASSIETTE CUM', 'PLAFOND CUM', '7020Taux', '7020Montant Pat.', 'Absences par Jour'],
@@ -89,12 +89,12 @@ models_info = {
             'categorical_cols': [],
             'target_col': '7050 Fraud'
     },
-    '7035': {
-            'model': tf.keras.models.load_model('./Reste/7035.keras'),
-            'numeric_cols': ['7035Taux 2', '7035Montant Pat.', '7035Base'],
-            'categorical_cols': [],
-            'target_col': '7035 Fraud'
-    },
+    #'7035': {
+    #        'model': tf.keras.models.load_model('./Reste/7035.keras'),
+    #        'numeric_cols': ['7035Taux 2', '7035Montant Pat.', '7035Base'],
+    #        'categorical_cols': [],
+    #        'target_col': '7035 Fraud'
+    #},
     #'7C00': {
     #       'model': tf.keras.models.load_model('./Reste/7C00.keras'),
     #        'numeric_cols': ['7C00Taux 2', '7C00Base', '7C00Montant Pat.'],
