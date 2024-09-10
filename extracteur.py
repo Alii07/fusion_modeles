@@ -31,7 +31,8 @@ def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
     except Exception as e:
         #st.write(f"Erreur lors de l'extraction des tableaux à partir du PDF pour les pages {pages}: {str(e)}")
         return None
-
+    
+@st.cache_data
 def save_table_to_csv(df, file_path):
     df.to_csv(file_path, index=False, encoding='utf-8')
 
