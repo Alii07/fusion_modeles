@@ -95,24 +95,24 @@ models_info = {
             'categorical_cols': [],
             'target_col': '7035 Fraud'
     },
-    '7C00': {
-            'model': tf.keras.models.load_model('./Reste/7C00.keras'),
-            'numeric_cols': ['7C00Taux 2', '7C00Base', '7C00Montant Pat.'],
-            'categorical_cols': [],
-            'target_col': '7C00 Fraud'
-    },
+    #'7C00': {
+    #       'model': tf.keras.models.load_model('./Reste/7C00.keras'),
+    #        'numeric_cols': ['7C00Taux 2', '7C00Base', '7C00Montant Pat.'],
+    #        'categorical_cols': [],
+    #        'target_col': '7C00 Fraud'
+    #},
     '7040': {
             'model': tf.keras.models.load_model('./Reste/7040.keras'),
             'numeric_cols': ['7040Taux 2', '7040Base', '7040Montant Pat.'],
             'categorical_cols': [],
             'target_col': '7040 Fraud'
     },
-    '7C20': {
-            'model': tf.keras.models.load_model('./Reste/7C20.keras'),
-            'numeric_cols': ['7C20Taux 2', '7C20Montant Pat.', '7C20Base'],
-            'categorical_cols': [],
-            'target_col': '7C20 Fraud'
-    },
+    #'7C20': {
+    #        'model': tf.keras.models.load_model('./Reste/7C20.keras'),
+    #       'numeric_cols': ['7C20Taux 2', '7C20Montant Pat.', '7C20Base'],
+    #       'categorical_cols': [],
+    #        'target_col': '7C20 Fraud'
+    #},
 
 }
 
