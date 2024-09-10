@@ -479,7 +479,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
 
     sorted_code_libelle = sorted(code_libelle_dict.items())
 
-    dictionnaire_file_path = "Dictionnaire2.txt"
+    dictionnaire_file_path = "./Dictionnaire2.txt"
     with open(dictionnaire_file_path, mode='w', encoding='utf-8') as dict_file:
         for code, libelle in sorted_code_libelle:
             dict_file.write(f"{code} : {libelle}\n")
@@ -764,7 +764,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     input_files.sort(key=lambda f: extract_page_number(f))
 
     # Path to the output CSV file
-    output_file = 'combined_output.csv'
+    output_file = './combined_output.csv'
 
     # Merge the CSV files
     combined_headers, combined_data = merge_csv_files(input_files)
@@ -861,14 +861,14 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
         #st.write(f"Rapport d'absences sauvegardé dans {output_file}")
 
 
-    absence_output_file = 'Absences.csv'
+    absence_output_file = './Absences.csv'
 
     # Générer le rapport d'absences
     generate_absences_report(rest_output_directory, absence_output_file)
 
-    matricules_file_path = "CSV3/matricules/matricules.csv"
-    combined_output_file_path = "combined_output.csv"
-    output_file_path = "merged_output.csv"
+    matricules_file_path = "./CSV3/matricules/matricules.csv"
+    combined_output_file_path = "./combined_output.csv"
+    output_file_path = "./merged_output.csv"
 
     # Lire les trois premières matricules depuis le fichier "matricules.csv"
     matricules = []
