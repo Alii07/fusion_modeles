@@ -889,6 +889,8 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
 
     # Vérifier si le nombre de lignes est correct
     if len(matricules) > len(combined_data) - 1:  # Moins 1 pour l'en-tête
+        st.write(len(matricules))
+        st.write(len(combined_data)-1)
         raise ValueError("Le fichier de matricules contient plus de lignes que le fichier combined_output.")
 
     # Fusionner les matricules en tant que première colonne
