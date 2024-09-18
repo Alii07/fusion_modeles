@@ -867,6 +867,8 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     # Générer le rapport d'absences
     generate_absences_report(rest_output_directory, absence_output_file)
 
+    
+
     matricules_file_path = "./CSV3/matricules/matricules.csv"
     combined_output_file_path = "./combined_output.csv"
     output_file_path = "./merged_output.csv"
@@ -877,9 +879,9 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
         reader = csv.reader(file)
         next(reader)  # Ignorer l'en-tête du fichier des matricules
         for i, row in enumerate(reader):
-            if i < 298 and row:  # Limiter aux 3 premières lignes non vides
+            if i < 600 and row:  # Limiter aux 3 premières lignes non vides
                 matricules.append(row[0])
-            elif i >= 298 :
+            elif i >= 600 :
                 break
 
     # Lire les données depuis le fichier "combined_output.csv"
@@ -921,6 +923,22 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     info_salaries_data = pd.read_excel(uploaded_file_2, engine='openpyxl')
     absences_data = pd.read_csv(absences_path)
 
+    def convert_to_float(value):
+        if pd.notnull(value):  # Vérifie si la valeur n'est pas nulle
+            try:
+                # Remplacer les '.' par '' et les ',' par '.' pour convertir en format float
+                value_str = str(value).replace('.', '').replace(',', '.')
+                return pd.to_numeric(value_str, errors='coerce')  # Utilisation de pd.to_numeric pour la conversion
+            except ValueError:
+                return value
+        return value
+
+    # Application de la fonction de conversion
+    for col in main_table.columns:
+        # Si la colonne est de type 'object', on tente la conversion
+        if main_table[col].dtype == 'object':
+            main_table[col] = main_table[col].apply(convert_to_float)
+
     # S'assurer que la colonne 'Matricule' est de type chaîne dans tous les fichiers
     main_table['Matricule'] = main_table['Matricule'].astype(str)
     cumul_data['Matricule'] = cumul_data['Matricule'].astype(str)
@@ -930,10 +948,15 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     merged_df = main_table.merge(cumul_data, on='Matricule', how='left')
     final_df = merged_df.merge(info_salaries_data, on='Matricule', how='left')
 
-    # Déplacer la colonne 'Nom Prénom' à la 2ème position
     cols = list(final_df.columns)
-    cols.insert(1, cols.pop(cols.index('Nom Prénom')))
+
+    # Vérifiez si la colonne 'Nom Prénom' existe
+    if 'Nom Prénom' in cols:
+        # Déplacez la colonne 'Nom Prénom' à la deuxième position
+        cols.insert(1, cols.pop(cols.index('Nom Prénom')))
+    # Réorganisez les colonnes dans le DataFrame
     final_df = final_df[cols]
+
 
     # Supprimer la colonne 'Nom'
     if 'Nom' in final_df.columns:
@@ -954,15 +977,24 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     # Concaténer horizontalement
     concatenated_df = pd.concat([final_df, absences_data], axis=1)
 
-    # Sauvegarde du fichier final en CSV
+
+
+    # Sauvegarder le DataFrame dans un fichier CSV après la conversion en float
     concatenated_df.to_csv(final_output_csv_path, index=False)
 
+    # Générer les données CSV pour le bouton de téléchargement
     csv_data = concatenated_df.to_csv(index=False).encode('utf-8')
 
+    # Afficher le message de confirmation
     st.write(f"Fichier sauvegardé sous {final_output_csv_path}")
 
-    st.download_button( label=f"Download fichier restructuré", data= csv_data, file_name="Fichier restrucuturé.csv", mime="text/csv" )
-
+    # Créer le bouton de téléchargement avec le fichier restructuré
+    st.download_button(
+        label="Download fichier restructuré",
+        data=csv_data,
+        file_name="Fichier restrucuturé.csv",
+        mime="text/csv"
+    )
     csv_files_to_delete = glob.glob(os.path.join(output_dir, "**", "*.csv"), recursive=True)
 
     for csv_file in csv_files_to_delete:
