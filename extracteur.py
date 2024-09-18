@@ -77,6 +77,7 @@ os.makedirs(output_directory, exist_ok=True)
 output_directory_mat = os.path.join(csv_directory, "matricules")
 os.makedirs(output_directory_mat, exist_ok=True)
 
+
 processed_directory = os.path.join(cleaner_output_directory, "processed")
 os.makedirs(processed_directory, exist_ok=True)
 
@@ -774,7 +775,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     input_files.sort(key=lambda f: extract_page_number(f))
 
     # Path to the output CSV file
-    output_file = './combined_output.csv'
+    output_file = os.path.join(csv_directory, "processed")
 
     # Merge the CSV files
     combined_headers, combined_data = merge_csv_files(input_files)
@@ -879,7 +880,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     
 
     matricules_file_path = "./CSV3/matricules/matricules.csv"
-    combined_output_file_path = "./combined_output.csv"
+    combined_output_file_path = os.path.join(csv_directory, "processed")
     output_file_path = "./merged_output.csv"
 
     # Lire les trois premières matricules depuis le fichier "matricules.csv"
