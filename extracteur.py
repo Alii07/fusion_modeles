@@ -32,9 +32,14 @@ def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
         #st.write(f"Erreur lors de l'extraction des tableaux à partir du PDF pour les pages {pages}: {str(e)}")
         return None
     
+import tempfile
+
 @st.cache_data
-def save_table_to_csv(df, file_path):
-    df.to_csv(file_path, index=False, encoding='utf-8')
+def save_table_to_csv(df):
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as temp_csv_file:
+        df.to_csv(temp_csv_file.name, index=False, encoding='utf-8')
+    return temp_csv_file.name  # Return the path of the saved file
+
 
 required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
 required_elements2 = ['Code','Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
@@ -49,11 +54,14 @@ absences_path = './Absences.csv'
 final_output_csv_path = './final_output.csv'
 
 filtered_files = []
-csv_directory = "./CSV3"
+# Creating a temporary directory for CSV storage
+csv_directory = tempfile.mkdtemp()
 
+# Temporary output directories
 output_directory = os.path.join(csv_directory, "bulletins")
 os.makedirs(output_directory, exist_ok=True)
 
+# Same applies to other directories
 clean_output_directory = os.path.join(output_directory, "bulletins_propres")
 os.makedirs(clean_output_directory, exist_ok=True)
 
@@ -69,8 +77,9 @@ os.makedirs(output_directory, exist_ok=True)
 output_directory_mat = os.path.join(csv_directory, "matricules")
 os.makedirs(output_directory_mat, exist_ok=True)
 
-processed_directory = './CSV3/bulletins/bulletins_propres/bulletins_propres_structurés/processed'
+processed_directory = os.path.join(cleaner_output_directory, "processed")
 os.makedirs(processed_directory, exist_ok=True)
+
 
 
 
