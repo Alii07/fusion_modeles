@@ -2,10 +2,12 @@ import streamlit as st
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import numpy as np
-import tensorflow as tf
+from tensorflow.keras.models import load_model  # Importer Keras via TensorFlow
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 import io
 import joblib
+import pickle
+
 
 st.title("Détection d'anomalies dans les cotisations URSSAF")
 
@@ -172,7 +174,7 @@ def load_model(model_info):
     else:
         raise ValueError(f"Type de modèle non pris en charge : {model_info['type']}")
     
-    
+
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
     df_filtered = df
 
