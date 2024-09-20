@@ -162,13 +162,13 @@ def load_model(model_info):
     model_path = model_info['model']
     
     if model_info['type'] == 'keras':
-        return keras.models.load_model(model_path)
+        return load_model(model_path)  # Appel direct à la fonction load_model de tensorflow.keras
     
     elif model_info['type'] == 'pickle':
         with open(model_path, 'rb') as file:
             return pickle.load(file)
     
-    elif model_info['type'] == 'joblib':  # Ajout de la prise en charge de joblib
+    elif model_info['type'] == 'joblib':  # Prise en charge de joblib
         return joblib.load(model_path)
     
     else:
