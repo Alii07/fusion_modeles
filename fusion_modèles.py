@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 import io
+import pickle
 
 st.title("Détection d'anomalies dans les cotisations URSSAF")
 
@@ -12,6 +13,7 @@ versement_mobilite = { '87005' : 1.80,  '87019': 1.80,  '87020': 1.80, '87038': 
 
 models_info = {
     'Mosselle': {
+        'type' : 'keras',
         'model': tf.keras.models.load_model('./Maladie/Moselle/maladie_Moselle.keras'),
         'numeric_cols': ['Brut_mensuel', 'Absences par Jour', 'Absences par Heure', 'Base Alsace Moselle',
                          'ASSIETTE CUM', 'SMIC M CUM', 'PLAFOND CUM', 'MALADIE CUM',
@@ -21,6 +23,7 @@ models_info = {
         'target_col': 'Fraud Maladie Moselle'
     },
     '7030': {
+        'type' : 'keras',
         'model': tf.keras.models.load_model('./allocations/7030/allocations_7030.keras'),
         'numeric_cols': [ 'Absences par Jour', 'Absences par Heure', 'PLAFOND CUM',
        'ASSIETTE CUM', 'ALL FAM CUM', '7030Base', '7030Taux 2','7030Montant Pat.'],
@@ -28,6 +31,7 @@ models_info = {
         'target_col': '7030 Fraud'
     },
     '7025': {
+        'type' : 'keras',
         'model': tf.keras.models.load_model('./allocations/7025/allocations_7025.keras'),
         'numeric_cols': [ 'Absences par Jour', 'Absences par Heure', 'PLAFOND CUM',
        'ASSIETTE CUM', 'ALL FAM CUM', '7025Base', '7025Taux 2','7025Montant Pat.'],
@@ -35,6 +39,7 @@ models_info = {
         'target_col': '7025 Fraud'
     },
     '6000': {
+        'type' : 'keras',
         'model': tf.keras.models.load_model('./Maladie/6000/maladie_6000.keras'),
         'numeric_cols': ['Absences par Jour',
        'Absences par Heure',  'PLAFOND CUM',
@@ -44,19 +49,22 @@ models_info = {
          'target_col': '6000 Fraud'
      },
      '6080': {
+    'type' : 'keras',
         'model': tf.keras.models.load_model('./CSG_CRDS/6080.keras'),
         'numeric_cols': ['Absences par Heure', '6080Base', '6080Taux', '6080Montant Sal.'],
          'categorical_cols': ['Statut texte'],
          'target_col': '6080 Fraud'
      },
      '6084': {
+        'type' : 'keras',
         'model': tf.keras.models.load_model('./CSG_CRDS/6084.keras'),
         'numeric_cols': ['Absences par Heure', '6084Base', '6084Taux', '6084Montant Sal.'],
         'categorical_cols': ['Statut texte'],
         'target_col': '6084 Fraud'
      },
     '7001': {
-        'model': tf.keras.models.load_model('./Maladie/7001/maladie_7001.keras'),
+        'type' : 'pickle',
+        'model': tf.keras.models.load_model('./Maladie/7001/maladie_7001.pkl'),
         'numeric_cols': ['Matricule', 'Absences par Jour',
        'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CUM','MALADIE CUM',  '7001Base', '7001Taux 2',
        '7001Montant Pat.'],
@@ -64,6 +72,7 @@ models_info = {
         'target_col': '7001 Fraud'
     },
     '7002': {
+        'type' : 'keras',
         'model': tf.keras.models.load_model('./Maladie/7002/maladie_7002.keras'),
         'numeric_cols': ['Matricule', 'Absences par Jour',
        'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CUM',
@@ -72,42 +81,49 @@ models_info = {
         'target_col': '7002 Fraud'
     },
     #'7010': {
+    #        'type' : 'keras',
     #        'model': tf.keras.models.load_model('./Reste/7010.keras'),
     #        'numeric_cols': ['7010Taux', '7010Taux 2', '7010Base'],
     #        'categorical_cols': [],
     #        'target_col': '7010 Fraud'
     #},
     '7020': {
-            'model': tf.keras.models.load_model('./FNAL/7020.keras'),
+            'type' : 'pickle',
+            'model': tf.keras.models.load_model('./FNAL/7020.pkl'),
             'numeric_cols': ['Effectif', 'ASSIETTE CUM', 'PLAFOND CUM', '7020Taux', '7020Montant Pat.', 'Absences par Jour'],
             'categorical_cols': ['Statut texte'],
             'target_col': '7020 Fraud'
     },
     '7050': {
+            'type' : 'keras',
             'model': tf.keras.models.load_model('./Reste/7050.keras'),
             'numeric_cols': ['7050Base', '7050Taux 2', '7050Montant Pat.'],
             'categorical_cols': [],
             'target_col': '7050 Fraud'
     },
-    #'7035': {
-    #        'model': tf.keras.models.load_model('./Reste/7035.keras'),
-    #        'numeric_cols': ['7035Taux 2', '7035Montant Pat.', '7035Base'],
-    #        'categorical_cols': [],
-    #        'target_col': '7035 Fraud'
-    #},
+    '7035': {
+            'type' : 'pickle',
+            'model': tf.keras.models.load_model('./Reste/7035.pkl'),
+            'numeric_cols': ['7035Taux 2', '7035Montant Pat.', '7035Base'],
+            'categorical_cols': [],
+            'target_col': '7035 Fraud'
+    },
     #'7C00': {
+    #       'type' : 'keras',
     #       'model': tf.keras.models.load_model('./Reste/7C00.keras'),
     #        'numeric_cols': ['7C00Taux 2', '7C00Base', '7C00Montant Pat.'],
     #        'categorical_cols': [],
     #        'target_col': '7C00 Fraud'
     #},
     '7040': {
+            'type' : 'keras',
             'model': tf.keras.models.load_model('./Reste/7040.keras'),
             'numeric_cols': ['7040Taux 2', '7040Base', '7040Montant Pat.'],
             'categorical_cols': [],
             'target_col': '7040 Fraud'
     },
     #'7C20': {
+    #       'type' : 'keras',
     #        'model': tf.keras.models.load_model('./Reste/7C20.keras'),
     #       'numeric_cols': ['7C20Taux 2', '7C20Montant Pat.', '7C20Base'],
     #       'categorical_cols': [],
@@ -140,6 +156,16 @@ def apply_versement_conditions(df):
 
     return df
 
+def load_model(model_info):
+    model_path = model_info['model']
+    if model_info['type'] == 'keras':
+        return tf.keras.models.load_model(model_path)
+    elif model_info['type'] == 'pickle':
+        with open(model_path, 'rb') as file:
+            return pickle.load(file)
+    else:
+        raise ValueError(f"Type de modèle non pris en charge : {model_info['type']}")
+
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
     df_filtered = df
 
@@ -161,19 +187,28 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
 
         X_numeric = df_inputs[info['numeric_cols']].applymap(lambda x: str(x).replace(',', '.'))
         X_numeric = X_numeric.apply(pd.to_numeric, errors='coerce').fillna(0)
-        
+
         scaler = StandardScaler()
         X_numeric_scaled = scaler.fit_transform(X_numeric)
 
         X_test = np.concatenate([X_categorical, X_numeric_scaled], axis=1)
 
-        expected_input_shape = info['model'].input_shape[-1]
-        if X_test.shape[1] != expected_input_shape:
-            st.error(f"Erreur : Le modèle {model_name} attend une entrée de forme {expected_input_shape} mais a reçu {X_test.shape[1]}.")
-            return
+        # Charger le modèle
+        model = load_model(info)
 
-        y_pred_proba = info['model'].predict(X_test)
-        y_pred = (y_pred_proba > 0.5).astype("int32")
+        if info['type'] == 'keras':
+            # Modèle Keras
+            expected_input_shape = model.input_shape[-1]
+            if X_test.shape[1] != expected_input_shape:
+                st.error(f"Erreur : Le modèle {model_name} attend une entrée de forme {expected_input_shape} mais a reçu {X_test.shape[1]}.")
+                return
+
+            y_pred_proba = model.predict(X_test)
+            y_pred = (y_pred_proba > 0.5).astype("int32")
+        
+        elif info['type'] == 'pickle':
+            # Modèle Pickle
+            y_pred = model.predict(X_test)
 
         df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
 
@@ -183,6 +218,7 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         for index in df_filtered.index:
             if y_pred[df_filtered.index.get_loc(index)] == 1:
                 anomalies_report.setdefault(index, set()).add(model_name)
+
 
 def detect_anomalies(df):
     anomalies_report = {}
