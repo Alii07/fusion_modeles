@@ -1,11 +1,11 @@
 streamlit
-pandas
-scikit-learn
-numpy
-tensorflow
+scikit-learn>=1.2.0
+pandas>=1.3.0
+joblib>=1.0.0
+numpy>=1.21.0
+tensorflow>=2.9.0
 keras
 pyngrok
-joblib
 altair
 matplotlib
 kaleido
