@@ -7,7 +7,7 @@ from sklearn.metrics import confusion_matrix, classification_report, roc_auc_sco
 import io
 import joblib
 import pickle
-
+from sklearn.pipeline import Pipeline
 
 st.title("Détection d'anomalies dans les cotisations URSSAF")
 
@@ -189,7 +189,7 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
     model = load_model(info)
 
     # Si le modèle est un pipeline scikit-learn (par exemple, RandomForest avec un ColumnTransformer)
-    if isinstance(model, joblib.pipeline.Pipeline):
+    if isinstance(model, Pipeline):
         try:
             # Ici, on passe les données brutes non transformées au pipeline qui s'occupera du prétraitement
             y_pred = model.predict(df_inputs)  
