@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 import io
-import pickle
+import joblib
 
 st.title("Détection d'anomalies dans les cotisations URSSAF")
 
@@ -63,7 +63,7 @@ models_info = {
         'target_col': '6084 Fraud'
      },
     '7001': {
-        'type' : 'pickle',
+        'type' : 'joblib',
         'model': './Maladie/7001/maladie_7001.pkl',
         'numeric_cols': ['Matricule', 'Absences par Jour',
        'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CUM','MALADIE CUM',  '7001Base', '7001Taux 2',
@@ -88,7 +88,7 @@ models_info = {
     #        'target_col': '7010 Fraud'
     #},
     '7020': {
-            'type' : 'pickle',
+            'type' : 'joblib',
             'model': './FNAL/7020.pkl',
             'numeric_cols': ['Effectif', 'ASSIETTE CUM', 'PLAFOND CUM', '7020Taux', '7020Montant Pat.', 'Absences par Jour'],
             'categorical_cols': ['Statut texte'],
@@ -102,7 +102,7 @@ models_info = {
             'target_col': '7050 Fraud'
     },
     '7035': {
-            'type' : 'pickle',
+            'type' : 'joblib',
             'model': './Reste/7035.pkl',
             'numeric_cols': ['7035Taux 2', '7035Montant Pat.', '7035Base'],
             'categorical_cols': [],
@@ -158,14 +158,21 @@ def apply_versement_conditions(df):
 
 def load_model(model_info):
     model_path = model_info['model']
+    
     if model_info['type'] == 'keras':
-        return tf.keras.models.load_model(model_path)
+        return keras.models.load_model(model_path)
+    
     elif model_info['type'] == 'pickle':
         with open(model_path, 'rb') as file:
             return pickle.load(file)
+    
+    elif model_info['type'] == 'joblib':  # Ajout de la prise en charge de joblib
+        return joblib.load(model_path)
+    
     else:
         raise ValueError(f"Type de modèle non pris en charge : {model_info['type']}")
-
+    
+    
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
     df_filtered = df
 
@@ -206,7 +213,7 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
             y_pred_proba = model.predict(X_test)
             y_pred = (y_pred_proba > 0.5).astype("int32")
         
-        elif info['type'] == 'pickle':
+        elif info['type'] == 'joblib':
             # Vérifier que le modèle possède une méthode predict
             if hasattr(model, 'predict'):
                 y_pred = model.predict(X_test)
