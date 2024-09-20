@@ -70,7 +70,7 @@ models_info = {
         'numeric_cols': ['Matricule', 'Absences par Jour',
        'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CUM','MALADIE CUM',  '7001Base', '7001Taux 2',
        '7001Montant Pat.'],
-        'categorical_cols': [],
+        'categorical_cols': ['Catégorie salariés', 'Statut de salariés'],
         'target_col': '7001 Fraud'
     },
     '7002': {
@@ -93,7 +93,7 @@ models_info = {
             'type' : 'joblib',
             'model': './FNAL/7020.pkl',
             'numeric_cols': ['Effectif', 'ASSIETTE CUM', 'PLAFOND CUM', '7020Taux', '7020Montant Pat.', 'Absences par Jour'],
-            'categorical_cols': ['Statut texte'],
+            'categorical_cols': ['Catégorie salariés', 'Statut de salariés'],
             'target_col': '7020 Fraud'
     },
     '7050': {
@@ -107,7 +107,7 @@ models_info = {
             'type' : 'joblib',
             'model': './Reste/7035.pkl',
             'numeric_cols': ['7035Taux 2', '7035Montant Pat.', '7035Base'],
-            'categorical_cols': [],
+            'categorical_cols': ['Catégorie salariés', 'Statut de salariés'],
             'target_col': '7035 Fraud'
     },
     #'7C00': {
