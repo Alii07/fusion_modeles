@@ -177,6 +177,7 @@ def load_model(model_info):
     
 
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
+    st.write(f"Traitement du modèle : {model_name}")  # Journalisation du nom du modèle
     df_filtered = df
 
     if df_filtered.empty:
@@ -203,26 +204,22 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
 
         X_test = np.concatenate([X_categorical, X_numeric_scaled], axis=1)
 
+        # Ajoutez des logs ici pour vérifier la forme des données
+        st.write(f"Nombre de colonnes pour {model_name} : {X_test.shape[1]}")
+
         # Charger le modèle
         model = load_model(info)
 
-        if info['type'] == 'keras':
-            # Modèle Keras
-            expected_input_shape = model.input_shape[-1]
-            if X_test.shape[1] != expected_input_shape:
-                st.error(f"Erreur : Le modèle {model_name} attend une entrée de forme {expected_input_shape} mais a reçu {X_test.shape[1]}.")
-                return
-
-            y_pred_proba = model.predict(X_test)
-            y_pred = (y_pred_proba > 0.5).astype("int32")
-        
-        elif info['type'] == 'joblib':
-            # Vérifier que le modèle possède une méthode predict
-            if hasattr(model, 'predict'):
+        # Vérifier si le modèle a bien la méthode 'predict'
+        if hasattr(model, 'predict'):
+            try:
                 y_pred = model.predict(X_test)
-            else:
-                st.error(f"Erreur : Le fichier {model_name} chargé n'est pas un modèle compatible avec predict.")
+            except ValueError as e:
+                st.error(f"Erreur avec le modèle {model_name} : {str(e)}")
                 return
+        else:
+            st.error(f"Le fichier {model_name} chargé n'est pas un modèle compatible avec predict.")
+            return
 
         df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
 
@@ -232,6 +229,7 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         for index in df_filtered.index:
             if y_pred[df_filtered.index.get_loc(index)] == 1:
                 anomalies_report.setdefault(index, set()).add(model_name)
+
 
 
 
