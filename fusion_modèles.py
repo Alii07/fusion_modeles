@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import numpy as np
-from tensorflow.keras.models import load_model  # Importer Keras via TensorFlow
+from tensorflow.keras.models import load_model as keras_load_model  # Renommer l'import
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 import io
 import joblib
@@ -162,7 +162,7 @@ def load_model(model_info):
     model_path = model_info['model']
     
     if model_info['type'] == 'keras':
-        return load_model(model_path)  # Appel direct à la fonction load_model de tensorflow.keras
+        return keras_load_model(model_path)  # Utilisation du bon alias ici
     
     elif model_info['type'] == 'pickle':
         with open(model_path, 'rb') as file:
@@ -173,6 +173,7 @@ def load_model(model_info):
     
     else:
         raise ValueError(f"Type de modèle non pris en charge : {model_info['type']}")
+
     
 
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
