@@ -137,7 +137,7 @@ models_info = {
 csv_upload = st.file_uploader("Entrez votre bulletin de paie (Format csv)", type=['csv'])
 
 def apply_versement_conditions(df):
-    required_columns = ['Versement Mobilite Taux', 'Effectif', 'Code Insee', 'Versement mobilite Base', 'versement Mobilite Montant Pat.']
+    required_columns = ['Versement Mobilite Taux', 'Effectif', 'Code Insee', 'Versement mobilite Base']
     
     if not all(col in df.columns for col in required_columns):
         df['Mobilite_Anomalie'] = False
@@ -149,12 +149,10 @@ def apply_versement_conditions(df):
         lambda row: 0 if row['Effectif'] < 11 else versement_mobilite.get(row['Code Insee'], row['Versement Mobilite Taux']),
         axis=1
     )
-
     df['Versement Mobilite Montant Pat. Calcule'] = (df['Versement mobilite Base'] * df['Versement Mobilite Taux'] / 100).round(2)
-    df['Mobilite_Montant_Anomalie'] = df['versement Mobilite Montant Pat.'] != df['Versement Mobilite Montant Pat. Calcule']
+    df['Mobilite_Montant_Anomalie'] = df['Versement Mobilite Montant Pat.'] != df['Versement Mobilite Montant Pat. Calcule']
     df['Mobilite_Anomalie'] = (df['Versement Mobilite Taux Avant'] != df['Versement Mobilite Taux']) | df['Mobilite_Montant_Anomalie']
-    df['mobilite Fraud'] = 0
-    df.loc[df['Mobilite_Anomalie'], 'mobilite Fraud'] = 1
+    df['mobilite Fraud'] = df['Mobilite_Anomalie'].astype(int)
 
     return df
 
@@ -162,22 +160,15 @@ def load_model(model_info):
     model_path = model_info['model']
     
     if model_info['type'] == 'keras':
-        return keras_load_model(model_path)  # Utilisation du bon alias ici
+        return keras_load_model(model_path)
     
-    elif model_info['type'] == 'pickle':
-        with open(model_path, 'rb') as file:
-            return pickle.load(file)
-    
-    elif model_info['type'] == 'joblib':  # Prise en charge de joblib
+    elif model_info['type'] == 'joblib':
         return joblib.load(model_path)
     
     else:
         raise ValueError(f"Type de modèle non pris en charge : {model_info['type']}")
 
-    
-
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
-    st.write(f"Traitement du modèle : {model_name}")  # Journalisation du nom du modèle
     df_filtered = df
 
     if df_filtered.empty:
@@ -185,53 +176,50 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         return
 
     required_columns = info['numeric_cols'] + info['categorical_cols']
+    missing_columns = [col for col in required_columns if col not in df_filtered.columns]
 
-    if all(col in df_filtered.columns for col in required_columns):
-        df_inputs = df_filtered.drop(columns=[info['target_col']]) if info['target_col'] in df_filtered.columns else df_filtered
+    if missing_columns:
+        st.error(f"Colonnes manquantes pour {model_name} : {missing_columns}")
+        return
 
-        # Encodage des colonnes catégorielles
-        if info['categorical_cols']:
-            one_hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-            X_categorical = one_hot_encoder.fit_transform(df_inputs[info['categorical_cols']])
-        else:
-            X_categorical = np.empty((len(df_inputs), 0))
+    df_inputs = df_filtered.drop(columns=[info['target_col']]) if info['target_col'] in df_filtered.columns else df_filtered
 
-        X_numeric = df_inputs[info['numeric_cols']].applymap(lambda x: str(x).replace(',', '.'))
-        X_numeric = X_numeric.apply(pd.to_numeric, errors='coerce').fillna(0)
+    # Encodage des colonnes catégorielles
+    if info['categorical_cols']:
+        one_hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+        X_categorical = one_hot_encoder.fit_transform(df_inputs[info['categorical_cols']])
+    else:
+        X_categorical = np.empty((len(df_inputs), 0))
 
-        scaler = StandardScaler()
-        X_numeric_scaled = scaler.fit_transform(X_numeric)
+    # Traitement des colonnes numériques
+    X_numeric = df_inputs[info['numeric_cols']].apply(pd.to_numeric, errors='coerce').fillna(0)
+    scaler = StandardScaler()
+    X_numeric_scaled = scaler.fit_transform(X_numeric)
 
-        X_test = np.concatenate([X_categorical, X_numeric_scaled], axis=1)
+    X_test = np.concatenate([X_categorical, X_numeric_scaled], axis=1)
+    st.write(f"Nombre de colonnes pour {model_name} : {X_test.shape[1]}")
 
-        # Ajoutez des logs ici pour vérifier la forme des données
-        st.write(f"Nombre de colonnes pour {model_name} : {X_test.shape[1]}")
+    # Charger le modèle
+    model = load_model(info)
 
-        # Charger le modèle
-        model = load_model(info)
-
-        # Vérifier si le modèle a bien la méthode 'predict'
-        if hasattr(model, 'predict'):
-            try:
-                y_pred = model.predict(X_test)
-            except ValueError as e:
-                st.error(f"Erreur avec le modèle {model_name} : {str(e)}")
-                return
-        else:
-            st.error(f"Le fichier {model_name} chargé n'est pas un modèle compatible avec predict.")
+    # Prédire
+    if hasattr(model, 'predict'):
+        try:
+            y_pred = model.predict(X_test)
+        except ValueError as e:
+            st.error(f"Erreur de prédiction avec le modèle {model_name} : {str(e)}")
             return
+    else:
+        st.error(f"Le modèle {model_name} n'a pas la méthode 'predict'.")
+        return
 
-        df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
+    df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
+    num_anomalies = np.sum(y_pred)
+    model_anomalies[model_name] = num_anomalies
 
-        num_anomalies = np.sum(y_pred)
-        model_anomalies[model_name] = num_anomalies
-
-        for index in df_filtered.index:
-            if y_pred[df_filtered.index.get_loc(index)] == 1:
-                anomalies_report.setdefault(index, set()).add(model_name)
-
-
-
+    for index in df_filtered.index:
+        if y_pred[df_filtered.index.get_loc(index)] == 1:
+            anomalies_report.setdefault(index, set()).add(model_name)
 
 def detect_anomalies(df):
     anomalies_report = {}
