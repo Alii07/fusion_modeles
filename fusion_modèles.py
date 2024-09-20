@@ -207,8 +207,12 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
             y_pred = (y_pred_proba > 0.5).astype("int32")
         
         elif info['type'] == 'pickle':
-            # Modèle Pickle
-            y_pred = model.predict(X_test)
+            # Vérifier que le modèle possède une méthode predict
+            if hasattr(model, 'predict'):
+                y_pred = model.predict(X_test)
+            else:
+                st.error(f"Erreur : Le fichier {model_name} chargé n'est pas un modèle compatible avec predict.")
+                return
 
         df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
 
@@ -218,6 +222,7 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         for index in df_filtered.index:
             if y_pred[df_filtered.index.get_loc(index)] == 1:
                 anomalies_report.setdefault(index, set()).add(model_name)
+
 
 
 def detect_anomalies(df):
