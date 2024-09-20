@@ -163,7 +163,7 @@ def load_model(model_info):
         return keras_load_model(model_path)
     
     elif model_info['type'] == 'joblib':
-        return joblib.load(model_path)
+        return joblib.load(model_path)  # Charger le modèle complet (pipeline ou modèle simple)
     
     else:
         raise ValueError(f"Type de modèle non pris en charge : {model_info['type']}")
@@ -182,44 +182,60 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         st.error(f"Colonnes manquantes pour {model_name} : {missing_columns}")
         return
 
+    # Préparer les données d'entrée sans la colonne cible
     df_inputs = df_filtered.drop(columns=[info['target_col']]) if info['target_col'] in df_filtered.columns else df_filtered
 
-    # Encodage des colonnes catégorielles
-    if info['categorical_cols']:
-        one_hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-        X_categorical = one_hot_encoder.fit_transform(df_inputs[info['categorical_cols']])
-    else:
-        X_categorical = np.empty((len(df_inputs), 0))
-
-    # Traitement des colonnes numériques
-    X_numeric = df_inputs[info['numeric_cols']].apply(pd.to_numeric, errors='coerce').fillna(0)
-    scaler = StandardScaler()
-    X_numeric_scaled = scaler.fit_transform(X_numeric)
-
-    X_test = np.concatenate([X_categorical, X_numeric_scaled], axis=1)
-    st.write(f"Nombre de colonnes pour {model_name} : {X_test.shape[1]}")
-
-    # Charger le modèle
+    # Charger le modèle (potentiellement un pipeline complet)
     model = load_model(info)
 
-    # Prédire
-    if hasattr(model, 'predict'):
+    # Si le modèle est un pipeline scikit-learn (par exemple, RandomForest avec un ColumnTransformer)
+    if isinstance(model, joblib.pipeline.Pipeline):
         try:
-            y_pred = model.predict(X_test)
+            # Ici, on passe les données brutes non transformées au pipeline qui s'occupera du prétraitement
+            y_pred = model.predict(df_inputs)  
         except ValueError as e:
-            st.error(f"Erreur de prédiction avec le modèle {model_name} : {str(e)}")
+            st.error(f"Erreur avec le modèle {model_name} : {str(e)}")
             return
     else:
-        st.error(f"Le modèle {model_name} n'a pas la méthode 'predict'.")
-        return
+        # Si ce n'est pas un pipeline (par exemple Keras), vous devez appliquer manuellement les transformations
+        # Encodage des colonnes catégorielles
+        if info['categorical_cols']:
+            one_hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+            X_categorical = one_hot_encoder.fit_transform(df_inputs[info['categorical_cols']])
+        else:
+            X_categorical = np.empty((len(df_inputs), 0))
 
+        # Traitement des colonnes numériques
+        X_numeric = df_inputs[info['numeric_cols']].apply(pd.to_numeric, errors='coerce').fillna(0)
+        scaler = StandardScaler()
+        X_numeric_scaled = scaler.fit_transform(X_numeric)
+
+        # Combiner les deux pour avoir les données finales à passer au modèle
+        X_test = np.concatenate([X_categorical, X_numeric_scaled], axis=1)
+        st.write(f"Nombre de colonnes pour {model_name} : {X_test.shape[1]}")
+
+        # Prédire
+        if hasattr(model, 'predict'):
+            try:
+                y_pred = model.predict(X_test)
+            except ValueError as e:
+                st.error(f"Erreur avec le modèle {model_name} : {str(e)}")
+                return
+        else:
+            st.error(f"Le modèle {model_name} n'a pas la méthode 'predict'.")
+            return
+
+    # Ajouter les prédictions au dataframe
     df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
     num_anomalies = np.sum(y_pred)
     model_anomalies[model_name] = num_anomalies
 
+    # Stocker les anomalies pour un rapport plus tard
     for index in df_filtered.index:
         if y_pred[df_filtered.index.get_loc(index)] == 1:
             anomalies_report.setdefault(index, set()).add(model_name)
+
+
 
 def detect_anomalies(df):
     anomalies_report = {}
