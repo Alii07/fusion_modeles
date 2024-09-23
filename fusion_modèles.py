@@ -187,11 +187,17 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
     # Préparer les données d'entrée sans la colonne cible
     df_inputs = df_filtered.drop(columns=[info['target_col']]) if info['target_col'] in df_filtered.columns else df_filtered
 
+    df_inputs[info['numeric_cols']] = df_inputs[info['numeric_cols']].fillna(df_inputs[info['numeric_cols']].mean())
+
+
     # Charger le modèle
     model = load_model(info)
 
     if info['type'] == 'joblib':
-        # Pour un modèle joblib (scikit-learn), appliquer les prédictions directement
+        # Remplacer les valeurs manquantes dans les colonnes numériques
+        df_inputs[info['numeric_cols']] = df_inputs[info['numeric_cols']].fillna(df_inputs[info['numeric_cols']].mean())
+        
+        # Appliquer les prédictions
         try:
             y_pred = model.predict(df_inputs)  # Scikit-learn pipelines gèrent le prétraitement
         except ValueError as e:
@@ -234,6 +240,7 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
     for index in df_filtered.index:
         if y_pred[df_filtered.index.get_loc(index)] == 1:
             anomalies_report.setdefault(index, set()).add(model_name)
+
 
 
 
