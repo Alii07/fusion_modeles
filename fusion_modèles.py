@@ -30,11 +30,10 @@ models_info = {
     #    'target_col': 'Fraud Maladie Moselle'
     #},
     '7030': {
-        'type' : 'keras',
-        'model': './allocations/7030/allocations_7030.keras',
-        'numeric_cols': [ 'Absences par Jour', 'Absences par Heure', 'PLAFOND CUM',
-       'ASSIETTE CUM', 'ALL FAM CUM', '7030Base', '7030Taux 2','7030Montant Pat.'],
-                       'categorical_cols': [],
+        'type' : 'joblib',
+        'model': './allocations/7030/allocations_7030.pkl',
+        'numeric_cols': [ 'Absences par Jour', 'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CUM', 'ALL FAM CUM', '7030Base', '7030Taux 2','7030Montant Pat.'],
+                       'categorical_cols': ['Catégorie salariés', 'Statut de salariés'],
         'target_col': '7030 Fraud'
     },
     '7025': {
