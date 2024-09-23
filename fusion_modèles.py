@@ -295,7 +295,12 @@ def detect_anomalies(df):
         report_content.write(f"Un nombre de {count} anomalies a été détecté pour la cotisation {model_name}.\n")
 
     for line_index, models in anomalies_report.items():
-        report_content.write(f"Ligne {line_index + 1} : anomalie dans les cotisations {', '.join(sorted(models))}\n")
+        # Récupérer le matricule correspondant à l'index de la ligne
+        matricule = df.loc[line_index, 'Matricule']
+        
+        # Écrire le rapport en utilisant le matricule au lieu de la ligne
+        report_content.write(f"Matricule {matricule} : anomalie dans les cotisations {', '.join(sorted(models))}\n")
+
 
     report_content.seek(0)
     return report_content
