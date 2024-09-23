@@ -213,20 +213,30 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         if info['categorical_cols']:
             one_hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
             X_categorical = one_hot_encoder.fit_transform(df_inputs[info['categorical_cols']])
+
+            # Nombre de colonnes générées par OneHotEncoder
+            num_categorical_cols = X_categorical.shape[1]
         else:
             X_categorical = np.empty((len(df_inputs), 0))
+            num_categorical_cols = 0
 
         # Traitement des colonnes numériques
         X_numeric = df_inputs[info['numeric_cols']].apply(pd.to_numeric, errors='coerce').fillna(0)
 
-        # Combinaison des données encodées et numériques
+        # Nombre total de colonnes numériques
+        num_numeric_cols = X_numeric.shape[1]
+
+        # Combiner les données encodées et numériques
         X_test = np.concatenate([X_categorical, X_numeric], axis=1)
 
-        # Vérification du nombre de colonnes après prétraitement
-        expected_num_cols = 10  # Modifiez cette valeur en fonction du nombre attendu de colonnes
+        # Calculer dynamiquement le nombre de colonnes attendu
+        expected_num_cols = num_numeric_cols + num_categorical_cols
         actual_num_cols = X_test.shape[1]
-        st.write(f"Forme des données après prétraitement : {X_test.shape}")
 
+        st.write(f"Forme des données après prétraitement : {X_test.shape}")
+        st.write(f"Nombre attendu de colonnes pour {model_name} : {expected_num_cols}")
+
+        # Vérification du nombre de colonnes après prétraitement
         if actual_num_cols != expected_num_cols:
             st.error(f"Le modèle {model_name} attend {expected_num_cols} colonnes, mais en a reçu {actual_num_cols}.")
             return  # Interrompre si le nombre de colonnes ne correspond pas
@@ -235,6 +245,14 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
             y_pred = model.predict(X_test)
         except ValueError as e:
             st.error(f"Erreur avec le modèle {model_name} (Keras) : {str(e)}")
+            return
+
+    elif info['type'] == 'joblib':
+        # Prétraitement pour les modèles joblib (scikit-learn pipeline)
+        try:
+            y_pred = model.predict(df_inputs)
+        except ValueError as e:
+            st.error(f"Erreur avec le modèle {model_name} (joblib) : {str(e)}")
             return
 
     else:
