@@ -191,24 +191,25 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
 
     assert not df_inputs.isnull().values.any(), "Les données d'entrée contiennent encore des valeurs manquantes après la correction."
 
-
-
     # Charger le modèle
     model = load_model(info)
 
+    # Traitement spécifique pour les modèles joblib (scikit-learn)
     if info['type'] == 'joblib':
-        # Remplacer les valeurs manquantes dans les colonnes numériques
-        df_inputs[info['numeric_cols']] = df_inputs[info['numeric_cols']].fillna(df_inputs[info['numeric_cols']].mean())
-        
-        # Appliquer les prédictions
-        try:
-            y_pred = model.predict(df_inputs)  # Scikit-learn pipelines gèrent le prétraitement
-        except ValueError as e:
-            st.error(f"Erreur avec le modèle {model_name} : {str(e)}")
+        # Vérifiez si le modèle est un pipeline scikit-learn avec un préprocesseur intégré
+        if hasattr(model, 'named_steps'):
+            try:
+                # Appliquer directement le pipeline (prétraitement inclus)
+                y_pred = model.predict(df_inputs)
+            except Exception as e:
+                st.error(f"Erreur avec le modèle {model_name} (joblib avec pipeline) : {str(e)}")
+                return
+        else:
+            st.error(f"Le modèle {model_name} n'a pas de 'named_steps'. Vérifiez qu'il utilise bien un pipeline scikit-learn.")
             return
 
+    # Traitement pour les modèles Keras
     elif info['type'] == 'keras':
-        # Si c'est un modèle Keras, appliquez manuellement les transformations comme avant
         if info['categorical_cols']:
             one_hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
             X_categorical = one_hot_encoder.fit_transform(df_inputs[info['categorical_cols']])
@@ -220,14 +221,13 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         scaler = StandardScaler()
         X_numeric_scaled = scaler.fit_transform(X_numeric)
 
-        # Combiner les deux pour obtenir les données finales à passer au modèle
+        # Combiner les données encodées et mises à l'échelle
         X_test = np.concatenate([X_categorical, X_numeric_scaled], axis=1)
-        st.write(f"Nombre de colonnes pour {model_name} : {X_test.shape[1]}")
 
         try:
             y_pred = model.predict(X_test)
         except ValueError as e:
-            st.error(f"Erreur avec le modèle {model_name} : {str(e)}")
+            st.error(f"Erreur avec le modèle {model_name} (Keras) : {str(e)}")
             return
 
     else:
