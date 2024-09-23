@@ -161,13 +161,14 @@ def load_model(model_info):
     model_path = model_info['model']
     
     if model_info['type'] == 'keras':
-        return keras_load_model(model_path)
+        return keras_load_model(model_path)  # Pour Keras
     
     elif model_info['type'] == 'joblib':
-        return joblib.load(model_path)  # Charger le modèle complet (pipeline ou modèle simple)
+        return joblib.load(model_path)  # Pour joblib (scikit-learn)
     
     else:
         raise ValueError(f"Type de modèle non pris en charge : {model_info['type']}")
+
 
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
     df_filtered = df
@@ -186,20 +187,19 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
     # Préparer les données d'entrée sans la colonne cible
     df_inputs = df_filtered.drop(columns=[info['target_col']]) if info['target_col'] in df_filtered.columns else df_filtered
 
-    # Charger le modèle (potentiellement un pipeline complet)
+    # Charger le modèle
     model = load_model(info)
 
-    # Si le modèle est un pipeline scikit-learn (par exemple, RandomForest avec un ColumnTransformer)
-    if isinstance(model, Pipeline):
+    if info['type'] == 'joblib':
+        # Pour un modèle joblib (scikit-learn), appliquer les prédictions directement
         try:
-            # Ici, on passe les données brutes non transformées au pipeline qui s'occupera du prétraitement
-            y_pred = model.predict(df_inputs)  
+            y_pred = model.predict(df_inputs)  # Scikit-learn pipelines gèrent le prétraitement
         except ValueError as e:
             st.error(f"Erreur avec le modèle {model_name} : {str(e)}")
             return
-    else:
-        # Si ce n'est pas un pipeline (par exemple Keras), vous devez appliquer manuellement les transformations
-        # Encodage des colonnes catégorielles
+
+    elif info['type'] == 'keras':
+        # Si c'est un modèle Keras, appliquez manuellement les transformations comme avant
         if info['categorical_cols']:
             one_hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
             X_categorical = one_hot_encoder.fit_transform(df_inputs[info['categorical_cols']])
@@ -211,20 +211,19 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         scaler = StandardScaler()
         X_numeric_scaled = scaler.fit_transform(X_numeric)
 
-        # Combiner les deux pour avoir les données finales à passer au modèle
+        # Combiner les deux pour obtenir les données finales à passer au modèle
         X_test = np.concatenate([X_categorical, X_numeric_scaled], axis=1)
         st.write(f"Nombre de colonnes pour {model_name} : {X_test.shape[1]}")
 
-        # Prédire
-        if hasattr(model, 'predict'):
-            try:
-                y_pred = model.predict(X_test)
-            except ValueError as e:
-                st.error(f"Erreur avec le modèle {model_name} : {str(e)}")
-                return
-        else:
-            st.error(f"Le modèle {model_name} n'a pas la méthode 'predict'.")
+        try:
+            y_pred = model.predict(X_test)
+        except ValueError as e:
+            st.error(f"Erreur avec le modèle {model_name} : {str(e)}")
             return
+
+    else:
+        st.error(f"Type de modèle non pris en charge : {info['type']}")
+        return
 
     # Ajouter les prédictions au dataframe
     df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
@@ -262,6 +261,7 @@ def detect_anomalies(df):
 
     report_content.seek(0)
     return report_content
+
 
 def charger_dictionnaire(fichier):
     dictionnaire = {}
