@@ -38,16 +38,16 @@ models_info = {
         'target_col': '7030 Fraud'
     },
     '7025': {
-        'type' : 'keras',
-        'model': './allocations/7025/allocations_7025.keras',
+        'type' : 'joblib',
+        'model': './allocations/7025/allocations_7025.pkl',
         'numeric_cols':  ['Matricule', 'Absences par Jour', 'Absences par Heure', 'PLAFOND CUM',
        'ASSIETTE CUM', 'ALL FAM CUM', '7025Base', '7025Taux 2','7025Montant Pat.'],
         'categorical_cols': [],
         'target_col': '7025 Fraud'
     },
     '6000': {
-        'type' : 'keras',
-        'model': './Maladie/6000/maladie_6000.keras',
+        'type' : 'pkl',
+        'model': './Maladie/6000/maladie_6000.pkl',
         'numeric_cols': ['Absences par Jour',
        'Absences par Heure',  'PLAFOND CUM',
        'ASSIETTE CUM', 'MALADIE CUM', '6000Base', '6000Taux',
@@ -79,8 +79,8 @@ models_info = {
         'target_col': '7001 Fraud'
     },
     '7002': {
-        'type' : 'keras',
-        'model': './Maladie/7002/maladie_7002.keras',
+        'type' : 'joblib',
+        'model': './Maladie/7002/maladie_7002.pkl',
         'numeric_cols': ['Matricule', 'Absences par Jour',
        'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CUM',
        'MALADIE CUM',  '7002Base', '7002Taux 2', '7002Montant Pat.'],
