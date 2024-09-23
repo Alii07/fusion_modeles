@@ -164,14 +164,24 @@ def apply_versement_conditions(df):
 def load_model(model_info):
     model_path = model_info['model']
     
+    # Vérifiez le type de modèle (Keras ou Joblib)
     if model_info['type'] == 'keras':
-        return keras_load_model(model_path)  # Pour Keras
+        try:
+            # Charger un modèle Keras
+            return keras_load_model(model_path)
+        except Exception as e:
+            raise ValueError(f"Erreur lors du chargement du modèle Keras : {str(e)}")
     
     elif model_info['type'] == 'joblib':
-        return joblib.load(model_path)  # Pour joblib (scikit-learn)
+        try:
+            # Charger un modèle joblib
+            return joblib.load(model_path)
+        except Exception as e:
+            raise ValueError(f"Erreur lors du chargement du modèle joblib : {str(e)}")
     
     else:
         raise ValueError(f"Type de modèle non pris en charge : {model_info['type']}")
+
 
 
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
