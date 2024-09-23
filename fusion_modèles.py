@@ -189,6 +189,9 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
 
     df_inputs[info['numeric_cols']] = df_inputs[info['numeric_cols']].fillna(df_inputs[info['numeric_cols']].mean())
 
+    assert not df_inputs.isnull().values.any(), "Les données d'entrée contiennent encore des valeurs manquantes après la correction."
+
+
 
     # Charger le modèle
     model = load_model(info)
