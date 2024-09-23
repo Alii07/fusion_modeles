@@ -63,8 +63,8 @@ models_info = {
          'target_col': '6080 Fraud'
      },
      '6084': {
-        'type' : 'keras',
-        'model': './CSG_CRDS/6084.keras',
+        'type' : 'joblib',
+        'model': './CSG_CRDS/6084.pkl',
         'numeric_cols': ['Absences par Heure', '6084Base', '6084Taux', '6084Montant Sal.'],
         'categorical_cols': ['Statut de salariés'],
         'target_col': '6084 Fraud'
