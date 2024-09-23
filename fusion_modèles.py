@@ -229,9 +229,6 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         expected_num_cols = num_numeric_cols + num_categorical_cols
         actual_num_cols = X_test.shape[1]
 
-        st.write(f"Forme des données après prétraitement : {X_test.shape}")
-        st.write(f"Nombre attendu de colonnes pour {model_name} : {expected_num_cols}")
-
         # Vérification du nombre de colonnes après prétraitement
         if actual_num_cols != expected_num_cols:
             st.error(f"Le modèle {model_name} attend {expected_num_cols} colonnes, mais en a reçu {actual_num_cols}.")
