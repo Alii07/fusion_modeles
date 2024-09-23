@@ -56,8 +56,8 @@ models_info = {
          'target_col': '6000 Fraud'
      },
      '6080': {
-    'type' : 'keras',
-        'model': './CSG_CRDS/6080.keras',
+    'type' : 'pkl',
+        'model': './CSG_CRDS/6080.pkl',
         'numeric_cols': ['Absences par Heure', '6080Base', '6080Taux', '6080Montant Sal.'],
          'categorical_cols': ['Statut de salariés'],
          'target_col': '6080 Fraud'
@@ -90,7 +90,7 @@ models_info = {
     '7010': {
             'type' : 'joblib',
             'model': './Reste/7010.pkl',
-           'numeric_cols': ['7010Taux','7010 Montant Sal.', '7010Taux 2','7010 Montant Pat.', '7010Base'],
+           'numeric_cols': ['7010Taux','7010Montant Sal.', '7010Taux 2','7010Montant Pat.', '7010Base'],
             'categorical_cols': [],
             'target_col': '7010 Fraud'
     },
@@ -182,34 +182,27 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         return
 
     required_columns = info['numeric_cols'] + info['categorical_cols']
-    
-    # Supprimer les espaces supplémentaires dans les noms de colonnes
-    df.columns = df.columns.str.strip()
-    
-    # Vérifier les colonnes manquantes
     missing_columns = [col for col in required_columns if col not in df_filtered.columns]
+
     if missing_columns:
         st.error(f"Colonnes manquantes pour {model_name} : {missing_columns}")
-        
-        # Option : Créer les colonnes manquantes avec des valeurs par défaut
-        for col in missing_columns:
-            df_filtered[col] = 0  # Par exemple, 0 pour les colonnes numériques
         return
 
     # Préparer les données d'entrée sans la colonne cible
     df_inputs = df_filtered.drop(columns=[info['target_col']]) if info['target_col'] in df_filtered.columns else df_filtered
 
-    # Remplacer les valeurs manquantes dans les colonnes numériques
     df_inputs[info['numeric_cols']] = df_inputs[info['numeric_cols']].fillna(df_inputs[info['numeric_cols']].mean())
 
     # Charger le modèle
     model = load_model(info)
 
-    # Traitement spécifique pour les modèles joblib (scikit-learn)
+    y_pred = None  # Initialisation de y_pred
+
     if info['type'] == 'joblib':
+        # Vérifiez si le modèle est un pipeline scikit-learn avec un préprocesseur intégré
         if hasattr(model, 'named_steps'):
             try:
-                y_pred = model.predict(df_inputs)  # Appliquer le pipeline
+                y_pred = model.predict(df_inputs)  # Appliquer directement le pipeline
             except Exception as e:
                 st.error(f"Erreur avec le modèle {model_name} (joblib avec pipeline) : {str(e)}")
                 return
@@ -219,18 +212,43 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
 
     elif info['type'] == 'keras':
         # Si c'est un modèle Keras, appliquez manuellement les transformations
-        # ... (la partie pour les modèles Keras reste inchangée)
-        pass
+        if info['categorical_cols']:
+            one_hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+            X_categorical = one_hot_encoder.fit_transform(df_inputs[info['categorical_cols']])
+        else:
+            X_categorical = np.empty((len(df_inputs), 0))
 
-    # Ajouter les prédictions au dataframe
-    df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
-    num_anomalies = np.sum(y_pred)
-    model_anomalies[model_name] = num_anomalies
+        # Traitement des colonnes numériques
+        X_numeric = df_inputs[info['numeric_cols']].apply(pd.to_numeric, errors='coerce').fillna(0)
 
-    # Stocker les anomalies pour un rapport plus tard
-    for index in df_filtered.index:
-        if y_pred[df_filtered.index.get_loc(index)] == 1:
-            anomalies_report.setdefault(index, set()).add(model_name)
+        # Combiner les deux pour obtenir les données finales à passer au modèle
+        X_test = np.concatenate([X_categorical, X_numeric], axis=1)
+
+        # Vérifiez le nombre de colonnes finales
+        st.write(f"Forme des données après prétraitement : {X_test.shape}")
+
+        try:
+            y_pred = model.predict(X_test)
+        except ValueError as e:
+            st.error(f"Erreur avec le modèle {model_name} (Keras) : {str(e)}")
+            return
+    else:
+        st.error(f"Type de modèle non pris en charge : {info['type']}")
+        return
+
+    if y_pred is not None:
+        # Ajouter les prédictions au dataframe
+        df.loc[df_filtered.index, f'{model_name}_Anomalie_Pred'] = y_pred
+        num_anomalies = np.sum(y_pred)
+        model_anomalies[model_name] = num_anomalies
+
+        # Stocker les anomalies pour un rapport plus tard
+        for index in df_filtered.index:
+            if y_pred[df_filtered.index.get_loc(index)] == 1:
+                anomalies_report.setdefault(index, set()).add(model_name)
+    else:
+        st.error(f"Aucune prédiction disponible pour le modèle {model_name}.")
+
 
 
 
