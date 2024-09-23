@@ -195,7 +195,6 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
     missing_columns = [col for col in required_columns if col not in df_filtered.columns]
 
     if missing_columns:
-        st.error(f"Colonnes manquantes pour {model_name} : {missing_columns}")
         return
 
     # Préparer les données d'entrée sans la colonne cible
