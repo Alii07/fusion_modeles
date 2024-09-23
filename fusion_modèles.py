@@ -58,7 +58,7 @@ models_info = {
      '6080': {
         'type' : 'joblib',
         'model': './CSG_CRDS/6080.pkl',
-        'numeric_cols': ['Absences par Heure', '6080Base', '6080Taux', '6080Montant Sal.'],
+        'numeric_cols': ['Absences par Heure', '6084Base', '6084Taux', '6084Montant Sal.'],
          'categorical_cols': ['Statut de salariés'],
          'target_col': '6080 Fraud'
      },
