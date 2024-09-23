@@ -52,21 +52,21 @@ models_info = {
        'Absences par Heure',  'PLAFOND CUM',
        'ASSIETTE CUM', 'MALADIE CUM', '6000Base', '6000Taux',
        '6000Montant Sal.'],
-         'categorical_cols': ['Catégorie texte'],
+         'categorical_cols': ['Catégorie salariés'],
          'target_col': '6000 Fraud'
      },
      '6080': {
     'type' : 'keras',
         'model': './CSG_CRDS/6080.keras',
         'numeric_cols': ['Absences par Heure', '6080Base', '6080Taux', '6080Montant Sal.'],
-         'categorical_cols': ['Statut texte'],
+         'categorical_cols': ['Statut de salariés'],
          'target_col': '6080 Fraud'
      },
      '6084': {
         'type' : 'keras',
         'model': './CSG_CRDS/6084.keras',
         'numeric_cols': ['Absences par Heure', '6084Base', '6084Taux', '6084Montant Sal.'],
-        'categorical_cols': ['Statut texte'],
+        'categorical_cols': ['Statut de salariés'],
         'target_col': '6084 Fraud'
      },
     '7001': {
