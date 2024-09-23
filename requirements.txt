@@ -8,6 +8,7 @@ keras
 pyngrok
 altair
 matplotlib
+math
 kaleido
 camelot-py[cv]  # Camelot avec OpenCV, mais la dépendance sera satisfaite par opencv-python-headless
 pypdf

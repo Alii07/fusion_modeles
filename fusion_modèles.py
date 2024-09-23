@@ -10,6 +10,7 @@ import joblib
 import pickle
 from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_array
+import math
 
 st.title("Détection d'anomalies dans les cotisations URSSAF")
 
@@ -292,7 +293,7 @@ def detect_anomalies(df):
     report_content.write("Rapport d'anomalies détectées :\n\n")
     report_content.write(f"Total des lignes avec des anomalies : {total_anomalies}\n")
     for model_name, count in model_anomalies.items():
-        report_content.write(f"Un nombre de {count} anomalies a été détecté pour la cotisation {model_name}.\n")
+        report_content.write(f"Un nombre de {math.floor(count)} anomalies a été détecté pour la cotisation {model_name}.\n")
 
     for line_index, models in anomalies_report.items():
         # Récupérer le matricule correspondant à l'index de la ligne
