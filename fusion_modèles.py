@@ -42,7 +42,7 @@ models_info = {
         'model': './allocations/7025/allocations_7025.keras',
         'numeric_cols': ['Matricule', 'Absences par Jour', 'Absences par Heure', 'PLAFOND CUM',
        'ASSIETTE CUM', 'ALL FAM CUM', '7025Base', '7025Taux 2','7025Montant Pat.'],
-                       'categorical_cols': [],
+                       'categorical_cols': ['Catégorie salariés', 'Statut de salariés'],
         'target_col': '7025 Fraud'
     },
     '6000': {
