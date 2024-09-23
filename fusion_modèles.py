@@ -46,7 +46,7 @@ models_info = {
         'target_col': '7025 Fraud'
     },
     '6000': {
-        'type' : 'pkl',
+        'type' : 'joblib',
         'model': './Maladie/6000/maladie_6000.pkl',
         'numeric_cols': ['Absences par Jour',
        'Absences par Heure',  'PLAFOND CUM',
