@@ -97,7 +97,7 @@ models_info = {
     '7020': {
             'type' : 'joblib',
             'model': './FNAL/7020.pkl',
-            'numeric_cols': ['Effectif', 'ASSIETTE CUM', 'PLAFOND CUM', '7020Taux', '7020Montant Pat.', 'Absences par Jour'],
+            'numeric_cols': ['Effectif', 'ASSIETTE CUM', 'PLAFOND CUM', '7020Taux 2', '7020Montant Pat.', 'Absences par Jour'],
             'categorical_cols': ['Catégorie salariés', 'Statut de salariés'],
             'target_col': '7020 Fraud'
     },
