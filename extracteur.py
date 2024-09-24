@@ -125,6 +125,8 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
 
     st.write("Extraction des tableaux terminée.")
 
+    st.write(len(csv_files))
+
     # Liste des éléments requis
     required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
     required_elements2 = ['Code','Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
@@ -137,9 +139,6 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
             filtered_files.append((filename, csv_content))  # Ajouter le nom et le contenu du fichier filtré
     
     st.write("Les fichiers CSV filtrés sont prêts à être utilisés.")
-
-    for file in filtered_files :
-        st.write(file)
 
     # Exemple d'affichage des fichiers filtrés
     st.write(len(filtered_files))
