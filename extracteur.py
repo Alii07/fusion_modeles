@@ -28,7 +28,6 @@ def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
             edge_tol=edge_tol,
             row_tol=row_tol
         )
-        st.write(tables_stream)
         return tables_stream
 
     except Exception as e:
@@ -55,6 +54,7 @@ def split_columns(header, second_line, required_elements):
     other_indices = [i for i, col in enumerate(second_line) if col not in required_elements]
     return required_indices, other_indices
 
+# Fonction pour traiter les pages du PDF
 # Fonction pour traiter les pages du PDF
 def process_pages(pdf_file_path, edge_tol, row_tol, page):
     tables_stream = extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages=page)
@@ -115,6 +115,10 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
                 for page_number, df_stream in results:
                     csv_content = save_table_to_memory_csv(df_stream)
                     csv_files[f"table_page_{page_number}.csv"] = csv_content
+
+                    # Afficher les premières lignes du tableau extrait
+                    st.write(f"Premières lignes du tableau extrait de la page {page_number}:")
+                    st.dataframe(df_stream.head())  # Affiche les premières lignes du tableau dans Streamlit
                 
                 current_page_count += 1
                 progress_value = current_page_count / total_pages
@@ -125,6 +129,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
                 st.write(f"Erreur lors du traitement des pages {page}: {e}")
 
     st.write("Extraction des tableaux terminée.")
+
 
     st.write(len(csv_files))
 
