@@ -25,11 +25,9 @@ altair>=4.1.0
 matplotlib>=3.4.0
 kaleido>=0.2.1
 
-# pdftopng version 0.1.0
-pdftopng==0.1.0
+pdftopng
 
-# Camelot for PDF table extraction (version antérieure compatible avec pdftopng 0.1.0)
-camelot-py[cv]==0.10.1
+camelot-py[cv]
 
 
 
