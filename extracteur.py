@@ -12,11 +12,11 @@ import glob
 import concurrent.futures
 from io import StringIO
 
-def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
+def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages, flavor='stream'):
     try:
         tables_stream = camelot.read_pdf(
             pdf_file_path,
-            flavor='stream',
+            flavor=flavor,
             pages=pages,
             strip_text='\n',
             edge_tol=edge_tol,
@@ -25,6 +25,7 @@ def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
         return tables_stream
 
     except Exception as e:
+        st.write(f"Erreur lors de l'extraction de la page {pages}: {str(e)}")
         return None
 
 @st.cache_data
@@ -34,8 +35,8 @@ def save_table_to_memory_csv(df):
     csv_buffer.seek(0)
     return csv_buffer.getvalue()
 
-def process_pages(pdf_file_path, edge_tol, row_tol, page):
-    tables_stream = extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages=page)
+def process_pages(pdf_file_path, edge_tol, row_tol, page, flavor):
+    tables_stream = extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages=page, flavor=flavor)
     results = []
     if tables_stream is not None and len(tables_stream) > 0:
         largest_table = max(tables_stream, key=lambda t: t.df.shape[0] * t.df.shape[1])
@@ -44,15 +45,6 @@ def process_pages(pdf_file_path, edge_tol, row_tol, page):
         df_stream.fillna('', inplace=True)
         page_number = largest_table.parsing_report['page']
         
-        # Re-extract if needed
-        if 'Montant Sal.Taux' in df_stream.iloc[0].values:
-            refined_tables = extract_table_from_pdf(pdf_file_path, edge_tol=500, row_tol=5, pages=str(page_number))
-            if refined_tables is not None and len(refined_tables) > 0:
-                largest_table = max(refined_tables, key=lambda t: t.df.shape[0] * t.df.shape[1])
-                df_stream = largest_table.df
-                df_stream.replace('\n', '', regex=True, inplace=True)
-                df_stream.fillna('', inplace=True)
-
         results.append((page_number, df_stream))
     
     return results
@@ -79,11 +71,12 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     status_text = st.empty()
     
     max_workers = 2  # Limite du nombre de threads à 2
+    flavor = 'lattice'  # Utilisation de 'lattice' pour extraire les tableaux avec lignes délimitées
     
     st.write(f"Extraction des tableaux pour toutes les {total_pages} pages...")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        other_page_futures = {executor.submit(process_pages, temp_pdf_path, 300, 3, str(page)): page for page in range(1, total_pages + 1)}
+        other_page_futures = {executor.submit(process_pages, temp_pdf_path, 50, 2, str(page), flavor): page for page in range(1, total_pages + 1)}
         
         for future in concurrent.futures.as_completed(other_page_futures):
             page = other_page_futures[future]
