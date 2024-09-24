@@ -13,22 +13,38 @@ def rename_duplicate_columns(df):
     return df
 
 # Fonction pour extraire les tables avec pdfplumber
+def extract_largest_table_from_page(page):
+    tables_on_page = page.extract_tables()
+    largest_table = None
+    largest_size = 0
+
+    if tables_on_page:
+        # Trouver le tableau ayant le plus grand nombre de cellules
+        for table in tables_on_page:
+            df_table = pd.DataFrame(table[1:], columns=table[0])  # Convertir en DataFrame
+            current_size = df_table.shape[0] * df_table.shape[1]  # Calculer la taille du tableau
+            if current_size > largest_size:
+                largest_size = current_size
+                largest_table = df_table
+
+    return largest_table
+
+# Extraction des tableaux du PDF
 def extract_tables_from_pdf(pdf_file_path):
     tables = []
     with pdfplumber.open(pdf_file_path) as pdf:
         for i, page in enumerate(pdf.pages, 1):
             st.write(f"Extraction des tableaux de la page {i}...")
-            tables_on_page = page.extract_table()
-            if tables_on_page:
-                df_table = pd.DataFrame(tables_on_page[1:], columns=tables_on_page[0])
-                
+            largest_table = extract_largest_table_from_page(page)
+            
+            if largest_table is not None:
                 # Renommer les colonnes dupliquées
-                df_table = rename_duplicate_columns(df_table)
+                largest_table = rename_duplicate_columns(largest_table)
                 
                 # Supprimer les colonnes avec des noms `None`
-                df_table = df_table.loc[:, ~df_table.columns.isnull()]
+                largest_table = largest_table.loc[:, ~largest_table.columns.isnull()]
                 
-                tables.append((i, df_table))
+                tables.append((i, largest_table))
     return tables
 
 @st.cache_data
@@ -70,7 +86,8 @@ if uploaded_pdf is not None:
 
 
 
-    st.write(len(csv_files))
+
+#    st.write(len(csv_files))
 
     # Liste des éléments requis
     required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
