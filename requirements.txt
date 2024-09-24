@@ -25,8 +25,10 @@ altair>=4.1.0
 matplotlib>=3.4.0
 kaleido>=0.2.1  # Pour générer des images via Altair ou Plotly dans un environnement sans interface graphique
 
-# Camelot for PDF table extraction
-camelot-py[cv]>=0.10.1  # Camelot avec OpenCV, l'option [cv] installe aussi OpenCV
+# Camelot for PDF table extraction (sans version spécifique pour éviter les conflits)
+camelot-py[cv]  # Camelot avec OpenCV
+
+# OpenCV version légère
 opencv-python-headless>=4.5.0  # Version légère d'OpenCV sans interface graphique (nécessaire pour camelot)
 
 # PyPDF for PDF manipulation
@@ -34,3 +36,4 @@ pypdf>=3.0.0
 
 # Ghostscript for handling PDFs (required by Camelot)
 ghostscript>=0.7
+
