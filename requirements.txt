@@ -1,5 +1,3 @@
-pip>=24.2
-
 # Streamlit for web applications
 streamlit>=1.0.0
 
@@ -27,11 +25,11 @@ altair>=4.1.0
 matplotlib>=3.4.0
 kaleido>=0.2.1  # Pour générer des images via Altair ou Plotly dans un environnement sans interface graphique
 
-# Camelot for PDF table extraction (dernière version avec pdftopng)
+# Camelot for PDF table extraction
 camelot-py[cv]>=0.11.0
 
-# pdftopng for resolving dependencies of camelot-py
-pdftopng>=0.2.3
+# pdftopng version disponible (0.1.0)
+pdftopng==0.1.0
 
 # OpenCV version légère
 opencv-python-headless>=4.5.0  # Version légère d'OpenCV sans interface graphique (nécessaire pour camelot)
