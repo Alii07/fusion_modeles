@@ -105,7 +105,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     st.write(f"Extraction des tableaux pour toutes les {total_pages} pages...")
 
     # Utilisation de `ProcessPoolExecutor` pour traiter les pages en parallèle
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         other_page_futures = {executor.submit(process_pages, temp_pdf_path, 300, 3, str(page)): page for page in range(1, total_pages + 1)}
         
         for future in concurrent.futures.as_completed(other_page_futures):
