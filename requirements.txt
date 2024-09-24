@@ -9,8 +9,8 @@ pyngrok
 altair
 matplotlib
 kaleido
+pdfplumber
 camelot-py[cv]  # Camelot avec OpenCV, mais la dépendance sera satisfaite par opencv-python-headless
 pypdf
 ghostscript
 opencv-python-headless  # Remplace cv2 par une version plus légère d'OpenCV adaptée aux environnements serveurs
-pdfplumber
