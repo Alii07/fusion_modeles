@@ -4,6 +4,14 @@ import streamlit as st
 import tempfile
 from io import StringIO
 
+# Fonction pour renommer les colonnes dupliquées
+def rename_duplicate_columns(df):
+    cols = pd.Series(df.columns)
+    for dup in cols[cols.duplicated()].unique():
+        cols[cols[cols == dup].index.values.tolist()] = [f"{dup}_{i}" for i in range(sum(cols == dup))]
+    df.columns = cols
+    return df
+
 # Fonction pour extraire les tables avec pdfplumber
 def extract_tables_from_pdf(pdf_file_path):
     tables = []
@@ -13,6 +21,13 @@ def extract_tables_from_pdf(pdf_file_path):
             tables_on_page = page.extract_table()
             if tables_on_page:
                 df_table = pd.DataFrame(tables_on_page[1:], columns=tables_on_page[0])
+                
+                # Renommer les colonnes dupliquées
+                df_table = rename_duplicate_columns(df_table)
+                
+                # Supprimer les colonnes avec des noms `None`
+                df_table = df_table.loc[:, ~df_table.columns.isnull()]
+                
                 tables.append((i, df_table))
     return tables
 
