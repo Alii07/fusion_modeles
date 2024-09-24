@@ -1,32 +1,20 @@
-import camelot
+import pdfplumber
 import pandas as pd
-import os
-import re
-import csv
-import shutil
-from PyPDF2 import PdfReader
 import streamlit as st
-import random
 import tempfile
-import glob
-import concurrent.futures
 from io import StringIO
 
-def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages, flavor='stream'):
-    try:
-        tables_stream = camelot.read_pdf(
-            pdf_file_path,
-            flavor=flavor,
-            pages=pages,
-            strip_text='\n',
-            edge_tol=edge_tol,
-            row_tol=row_tol
-        )
-        return tables_stream
-
-    except Exception as e:
-        st.write(f"Erreur lors de l'extraction de la page {pages}: {str(e)}")
-        return None
+# Fonction pour extraire les tables avec pdfplumber
+def extract_tables_from_pdf(pdf_file_path):
+    tables = []
+    with pdfplumber.open(pdf_file_path) as pdf:
+        for i, page in enumerate(pdf.pages, 1):
+            st.write(f"Extraction des tableaux de la page {i}...")
+            tables_on_page = page.extract_table()
+            if tables_on_page:
+                df_table = pd.DataFrame(tables_on_page[1:], columns=tables_on_page[0])
+                tables.append((i, df_table))
+    return tables
 
 @st.cache_data
 def save_table_to_memory_csv(df):
@@ -35,69 +23,35 @@ def save_table_to_memory_csv(df):
     csv_buffer.seek(0)
     return csv_buffer.getvalue()
 
-def process_pages(pdf_file_path, edge_tol, row_tol, page, flavor):
-    tables_stream = extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages=page, flavor=flavor)
-    results = []
-    if tables_stream is not None and len(tables_stream) > 0:
-        largest_table = max(tables_stream, key=lambda t: t.df.shape[0] * t.df.shape[1])
-        df_stream = largest_table.df
-        df_stream.replace('\n', '', regex=True, inplace=True)
-        df_stream.fillna('', inplace=True)
-        page_number = largest_table.parsing_report['page']
-        
-        results.append((page_number, df_stream))
-    
-    return results
-
 # Titre de l'application Streamlit
-st.title("Extraction de bulletins de paie à partir de PDF")
+st.title("Extraction de bulletins de paie à partir de PDF avec pdfplumber")
+
 uploaded_pdf = st.file_uploader("Téléverser un fichier PDF", type=["pdf"])
-uploaded_file_1 = st.file_uploader("1er fichier excel", type=['xlsx', 'xls'])
-uploaded_file_2 = st.file_uploader("2nd fichier excel", type=['xlsx', 'xls'])
 
-if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 is not None:
+if uploaded_pdf is not None:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-        temp_pdf.write(uploaded_pdf.read())  
+        temp_pdf.write(uploaded_pdf.read())
         temp_pdf_path = temp_pdf.name
-    
-    csv_files = {}
-    reader = PdfReader(temp_pdf_path)
-    total_pages = len(reader.pages)
-    
-    st.write(f"Le fichier PDF contient {total_pages} pages.")  # Débogage
-    
-    current_page_count = 0
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    max_workers = 2  # Limite du nombre de threads à 2
-    flavor = 'lattice'  # Utilisation de 'lattice' pour extraire les tableaux avec lignes délimitées
-    
-    st.write(f"Extraction des tableaux pour toutes les {total_pages} pages...")
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        other_page_futures = {executor.submit(process_pages, temp_pdf_path, 50, 2, str(page), flavor): page for page in range(1, total_pages + 1)}
-        
-        for future in concurrent.futures.as_completed(other_page_futures):
-            page = other_page_futures[future]
-            try:
-                results = future.result()
-                for page_number, df_stream in results:
-                    csv_content = save_table_to_memory_csv(df_stream)
-                    csv_files[f"table_page_{page_number}.csv"] = csv_content
+    st.write(f"Extraction des tableaux pour le fichier PDF...")
 
-                    st.write(f"Premières lignes du tableau extrait de la page {page_number}:")
-                    st.dataframe(df_stream.head())
-                
-                current_page_count += 1
-                progress_value = current_page_count / total_pages
-                progress_bar.progress(progress_value)
-                status_text.text(f"Traitement : {min(current_page_count, total_pages)}/{total_pages} pages traitées")
-                
-            except Exception as e:
-                st.error(f"Erreur lors du traitement des pages {page}: {str(e)}")
+    extracted_tables = extract_tables_from_pdf(temp_pdf_path)
 
-    st.write("Extraction des tableaux terminée.")
+    if extracted_tables:
+        for page_number, df_table in extracted_tables:
+            st.write(f"Premières lignes du tableau extrait de la page {page_number}:")
+            st.dataframe(df_table.head())
+            
+            # Sauvegarde du CSV en mémoire
+            csv_content = save_table_to_memory_csv(df_table)
+            st.download_button(
+                label=f"Télécharger le tableau de la page {page_number}",
+                data=csv_content,
+                file_name=f"table_page_{page_number}.csv",
+                mime='text/csv'
+            )
+    else:
+        st.write("Aucun tableau n'a été extrait du fichier PDF.")
 
 
 
