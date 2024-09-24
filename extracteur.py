@@ -99,7 +99,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    max_workers = 4  # Limite du nombre de threads/process
+    max_workers = 1  # Limite du nombre de threads/process
 
     st.write(f"Extraction des tableaux pour toutes les {total_pages} pages...")
 
