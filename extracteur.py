@@ -28,6 +28,7 @@ def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
             edge_tol=edge_tol,
             row_tol=row_tol
         )
+        st.write(tables_stream)
         return tables_stream
 
     except Exception as e:
