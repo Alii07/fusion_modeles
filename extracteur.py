@@ -99,7 +99,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    max_workers = 1  # Limite du nombre de threads/process
+    max_workers = 4  # Limite du nombre de threads/process
 
     st.write(f"Extraction des tableaux pour toutes les {total_pages} pages...")
 
@@ -137,6 +137,9 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
             filtered_files.append((filename, csv_content))  # Ajouter le nom et le contenu du fichier filtré
     
     st.write("Les fichiers CSV filtrés sont prêts à être utilisés.")
+
+    for file in filtered_files :
+        st.write(file)
 
     # Exemple d'affichage des fichiers filtrés
     st.write(len(filtered_files))
