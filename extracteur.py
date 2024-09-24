@@ -17,6 +17,7 @@ import tempfile
 import concurrent.futures
 from io import StringIO
 
+
 def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
     try:
         tables_stream = camelot.read_pdf(
@@ -30,8 +31,8 @@ def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
         return tables_stream
 
     except Exception as e:
-               return None
-    
+        return None
+
 @st.cache_data
 def save_table_to_memory_csv(df):
     csv_buffer = StringIO()
@@ -39,138 +40,71 @@ def save_table_to_memory_csv(df):
     csv_buffer.seek(0)
     return csv_buffer.getvalue()
 
-required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
-required_elements2 = ['Code','Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
+def check_second_line(file_content, required_elements):
+    file_like_object = StringIO(file_content)
+    reader = csv.reader(file_like_object)
+    next(reader)  # Ignorer la première ligne (header)
+    second_line = next(reader, None)  # Lire la deuxième ligne
+    if second_line and all(elem in second_line for elem in required_elements):
+        return True
+    return False
 
-code_libelle_dict = {}
-errors = []
-rubriques_codes_from_files = set()
-main_table_path = './merged_output.csv'
-cumul_path = './Cumul de janvier à juin.xlsx'
-info_salaries_path = './Information sur les salariés.xlsx'
-absences_path = './Absences.csv'
-final_output_csv_path = './final_output.csv'
+def split_columns(header, second_line, required_elements):
+    required_indices = [i for i, col in enumerate(second_line) if col in required_elements]
+    other_indices = [i for i, col in enumerate(second_line) if col not in required_elements]
+    return required_indices, other_indices
 
-filtered_files = []
-csv_directory = "./CSV3"
-
-output_directory = os.path.join(csv_directory, "bulletins")
-os.makedirs(output_directory, exist_ok=True)
-
-clean_output_directory = os.path.join(output_directory, "bulletins_propres")
-os.makedirs(clean_output_directory, exist_ok=True)
-
-rest_output_directory = os.path.join(output_directory, "restes_tableaux")
-os.makedirs(rest_output_directory, exist_ok=True)
-
-cleaner_output_directory = os.path.join(clean_output_directory, "bulletins_propres_structurés")
-os.makedirs(cleaner_output_directory, exist_ok=True)
-
-output_directory = os.path.join(csv_directory, "bulletins")
-os.makedirs(output_directory, exist_ok=True)
-
-output_directory_mat = os.path.join(csv_directory, "matricules")
-os.makedirs(output_directory_mat, exist_ok=True)
-
-processed_directory = './CSV3/bulletins/bulletins_propres/bulletins_propres_structurés/processed'
-os.makedirs(processed_directory, exist_ok=True)
-
-
-
-
-
-def transform_and_combine_tables(extracted_tables):
-
-    transformed_data = []
-
-    columns = [
-        'CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux Montant Pat.',
-        'Du', 'Date', 'Equipe', 'Hor.', 'Abs.'
-    ]
-
-    for df in extracted_tables:
-        for i in range(len(df)):
-            row = {}
-            row['CodeLibellé'] = df.iloc[i, 0]
-            for j, col_name in enumerate(columns[1:], 1):
-                if j < len(df.columns):
-                    row[col_name] = df.iloc[i, j]
-                else:
-                    row[col_name] = ''
-            transformed_data.append(row)
-
-    combined_df = pd.DataFrame(transformed_data, columns=columns)
-    return combined_df
-
-
-def clean_text(text):
-    cleaned_text = text.replace('NaN', '')
-
-    cleaned_text = cleaned_text.replace('\n', ' ')
-
-    return cleaned_text
+# Fonction pour traiter les pages du PDF
 def process_pages(pdf_file_path, edge_tol, row_tol, page):
-    
     tables_stream = extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages=page)
-
     results = []
-
     if tables_stream is not None and len(tables_stream) > 0:
         largest_table = max(tables_stream, key=lambda t: t.df.shape[0] * t.df.shape[1])
-
         df_stream = largest_table.df
         df_stream.replace('\n', '', regex=True, inplace=True)
         df_stream.fillna('', inplace=True)
         page_number = largest_table.parsing_report['page']
 
         if 'Montant Sal.Taux' in df_stream.iloc[0].values:
-            print(f"Colonne 'Montant Sal.Taux' détectée sur la page {page_number}. Ré-extraction avec les nouveaux paramètres.")
-
             refined_tables = extract_table_from_pdf(pdf_file_path, edge_tol=500, row_tol=5, pages=str(page_number))
-
             if refined_tables is not None and len(refined_tables) > 0:
                 largest_table = max(refined_tables, key=lambda t: t.df.shape[0] * t.df.shape[1])
                 df_stream = largest_table.df
                 df_stream.replace('\n', '', regex=True, inplace=True)
                 df_stream.fillna('', inplace=True)
-
+        
         results.append((page_number, df_stream))
-
+    
     return results
 
-
+# Titre de l'application Streamlit
 st.title("Extraction de bulletins de paie à partir de PDF")
 uploaded_pdf = st.file_uploader("Téléverser un fichier PDF", type=["pdf"])
 uploaded_file_1 = st.file_uploader("1er fichier excel", type=['xlsx', 'xls'])
 uploaded_file_2 = st.file_uploader("2nd fichier excel", type=['xlsx', 'xls'])
 
 if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 is not None:
+    # Créer un fichier temporaire pour le PDF téléchargé
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
         temp_pdf.write(uploaded_pdf.read())  
-        temp_pdf_path = temp_pdf.name 
-
-
-    output_dir = "CSV3"
-    os.makedirs(output_dir, exist_ok=True)
-
+        temp_pdf_path = temp_pdf.name
+    
+    # Dictionnaire pour stocker les fichiers CSV en mémoire
     csv_files = {}
 
     reader = PdfReader(temp_pdf_path)
     total_pages = len(reader.pages)
 
     current_page_count = 0
-
     progress_bar = st.progress(0)
     status_text = st.empty()
-
-    batch_size = 10  
-
-    max_workers = 4  
+    
+    max_workers = 4  # Limite du nombre de threads/process
 
     st.write(f"Extraction des tableaux pour toutes les {total_pages} pages...")
 
+    # Utilisation de `ProcessPoolExecutor` pour traiter les pages en parallèle
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-       
         other_page_futures = {executor.submit(process_pages, temp_pdf_path, 300, 3, str(page)): page for page in range(1, total_pages + 1)}
         
         for future in concurrent.futures.as_completed(other_page_futures):
@@ -178,14 +112,11 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
             try:
                 results = future.result()
                 for page_number, df_stream in results:
-                    stream_output_csv_file = os.path.join(output_dir, f"table_page_{page_number}.csv")
                     csv_content = save_table_to_memory_csv(df_stream)
-                    csv_files[f"table_page_{page_number}.csv"] = df_stream
+                    csv_files[f"table_page_{page_number}.csv"] = csv_content
                 
                 current_page_count += 1
                 progress_value = current_page_count / total_pages
-                if progress_value > 1.0:
-                    progress_value = 1.0  
                 progress_bar.progress(progress_value)
                 status_text.text(f"Traitement : {min(current_page_count, total_pages)}/{total_pages} pages traitées")
                 
@@ -194,38 +125,27 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
 
     st.write("Extraction des tableaux terminée.")
 
+    # Liste des éléments requis
+    required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
+    required_elements2 = ['Code','Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
 
-    def check_second_line(file_path, required_elements):
-        with open(file_path, mode='r', encoding='utf-8') as file:
-            reader = csv.reader(file)
-            next(reader)  
-            second_line = next(reader, None)  
-            if second_line and all(elem in second_line for elem in required_elements):
-                return True
-        return False
+    filtered_files = []
+
+    # Parcourir les fichiers CSV en mémoire et filtrer selon `check_second_line`
+    for filename, csv_content in csv_files.items():
+        if check_second_line(csv_content, required_elements) or check_second_line(csv_content, required_elements2):
+            filtered_files.append((filename, csv_content))  # Ajouter le nom et le contenu du fichier filtré
     
-    def split_columns(header, second_line, required_elements):
-        required_indices = [i for i, col in enumerate(second_line) if col in required_elements]
-        other_indices = [i for i, col in enumerate(second_line) if col not in required_elements]
-        return required_indices, other_indices
+    st.write("Les fichiers CSV filtrés sont prêts à être utilisés.")
 
+    # Exemple d'affichage des fichiers filtrés
+    st.write(len(filtered_files))
 
-
-    for filename in os.listdir(csv_directory):
-        if filename.endswith(".csv"):
-            file_path = os.path.join(csv_directory, filename)
-            if check_second_line(file_path, required_elements) or check_second_line(file_path, required_elements2):
-                filtered_files.append(file_path)
-
-
-    for file in filtered_files:
-        shutil.copy(file, output_directory)
-
-    st.write("Fichiers CSV filtrés enregistrés dans CSV3/bulletins.")
-
+    # Fonction pour vérifier si "Mat:" est présent dans le texte d'une page
     def check_for_mat(text):
         return 'Mat:' in text
 
+    # Fonction pour extraire les matricules du texte d'une page
     def extract_matricules(text):
         matricules = set()
         for line in text.split('\n'):
@@ -238,97 +158,139 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
                 matricules.add(matricule)
         return matricules
 
+    # Lire le fichier PDF téléchargé
     reader = PdfReader(uploaded_pdf)
     all_matricules = set()
 
+    # Parcourir chaque page du PDF et extraire les matricules
     for page in reader.pages:
         text = page.extract_text()
         if check_for_mat(text):
             all_matricules.update(extract_matricules(text))
 
+    # Créer un buffer CSV en mémoire pour les matricules
+    matricules_buffer = StringIO()
+    csv_writer = csv.writer(matricules_buffer)
+    csv_writer.writerow(["Matricule"])  # Écrire l'en-tête
 
-    matricules_file_path = os.path.join(output_directory_mat, "matricules.csv")
-    with open(matricules_file_path, mode='w', encoding='utf-8', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Matricule"])
-        writer.writerow([])  
-        for matricule in sorted(all_matricules):
-            writer.writerow([matricule])
+    # Écrire chaque matricule dans le buffer
+    for matricule in sorted(all_matricules):
+        csv_writer.writerow([matricule])
 
-    st.write(f"Matricules distinctes enregistrées dans {matricules_file_path}.")
+    # Remettre le curseur au début du buffer
+    matricules_buffer.seek(0)
 
-    def rename_second_taux(file_path):
-        with open(file_path, mode='r', encoding='utf-8') as infile:
-            reader = csv.reader(infile)
-            lines = list(reader)
+    st.write(pd.read_csv(matricules_buffer))
 
+    # Affichage du message de succès
+    st.write("Extraction des matricules terminée.")
+
+    # Fonction pour renommer la deuxième occurrence de "Taux" en "Taux 2"
+    def rename_second_taux(csv_content):
+        file_like_object = StringIO(csv_content)
+        reader = csv.reader(file_like_object)
+        lines = list(reader)
+        
         if len(lines) > 1:
             second_line = lines[1]
             taux_indices = [i for i, col in enumerate(second_line) if col == 'Taux']
             if len(taux_indices) > 1:
                 second_line[taux_indices[1]] = 'Taux 2'
+        
+        output_buffer = StringIO()
+        writer = csv.writer(output_buffer)
+        writer.writerows(lines)
+        return output_buffer.getvalue()
 
-        with open(file_path, mode='w', newline='', encoding='utf-8') as outfile:
-            writer = csv.writer(outfile)
-            writer.writerows(lines)
-
-
-    def check_second_line(file_path, required_elements):
-        with open(file_path, mode='r', encoding='utf-8') as file:
-            reader = csv.reader(file)
-            next(reader)  
-            second_line = next(reader, None) 
-            if second_line and all(elem in second_line for elem in required_elements):
-                return True
+    # Fonction pour vérifier la deuxième ligne du fichier CSV
+    def check_second_line(csv_content, required_elements):
+        file_like_object = StringIO(csv_content)
+        reader = csv.reader(file_like_object)
+        next(reader)  # Ignorer la première ligne (header)
+        second_line = next(reader, None)  # Lire la deuxième ligne
+        if second_line and all(elem in second_line for elem in required_elements):
+            return True
         return False
 
-    for filename in os.listdir(csv_directory):
-        if filename.endswith(".csv"):
-            file_path = os.path.join(csv_directory, filename)
-            if check_second_line(file_path, required_elements) or check_second_line(file_path, required_elements2):
-                rename_second_taux(file_path)
-                filtered_files.append(file_path)
-
-    for file in filtered_files:
-        with open(file, mode='r', encoding='utf-8') as infile:
-            reader = csv.reader(infile)
-            header = next(reader)  
-            second_line = next(reader)  
-            required_indices, other_indices = split_columns(header, second_line, required_elements + required_elements2)
-
-            clean_file_path = os.path.join(clean_output_directory, os.path.basename(file))
-            rest_file_path = os.path.join(rest_output_directory, os.path.basename(file))
-
-            with open(clean_file_path, mode='w', newline='', encoding='utf-8') as clean_outfile:
-                writer = csv.writer(clean_outfile)
-                writer.writerow([header[i] for i in required_indices])
-                writer.writerow([second_line[i] for i in required_indices])
-                for row in reader:
-                    writer.writerow([row[i] for i in required_indices])
-
-            infile.seek(0)
-            reader = csv.reader(infile)
-            header = next(reader)  
-            second_line = next(reader)  
-
-            with open(rest_file_path, mode='w', newline='', encoding='utf-8') as rest_outfile:
-                writer = csv.writer(rest_outfile)
-                writer.writerow([header[i] for i in other_indices])
-                writer.writerow([second_line[i] for i in other_indices])
-                for row in reader:
-                    writer.writerow([row[i] for i in other_indices])
-
-    st.write("Fichiers CSV divisés et sauvegardés dans les répertoires appropriés.")
-
+    # Fonction pour séparer les colonnes requises et non requises
     def split_columns(header, second_line, required_elements):
         required_indices = [i for i, col in enumerate(second_line) if col in required_elements]
         other_indices = [i for i, col in enumerate(second_line) if col not in required_elements]
         return required_indices, other_indices
 
-    def rename_second_taux(file_path):
-        with open(file_path, mode='r', encoding='utf-8') as infile:
-            reader = csv.reader(infile)
-            lines = list(reader)
+    # Filtrage des fichiers en mémoire et renommage de la deuxième colonne "Taux"
+    required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
+    required_elements2 = ['Code', 'Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
+
+    filtered_files = {}
+
+    for filename, csv_content in csv_files.items():
+        if check_second_line(csv_content, required_elements) or check_second_line(csv_content, required_elements2):
+            # Renommer le deuxième "Taux"
+            csv_content = rename_second_taux(csv_content)
+            filtered_files[filename] = csv_content
+
+    # Diviser les fichiers en deux : colonnes requises et autres
+    clean_csv_files = {}
+    rest_csv_files = {}
+
+    for filename, csv_content in filtered_files.items():
+        file_like_object = StringIO(csv_content)
+        reader = csv.reader(file_like_object)
+        
+        # Lire l'en-tête et la deuxième ligne
+        header = next(reader)
+        second_line = next(reader)
+
+        required_elements_new = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']
+        required_elements2_new = ['Code','Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']
+        
+        # Obtenir les indices des colonnes requises et autres
+        required_indices, other_indices = split_columns(header, second_line, required_elements_new + required_elements2_new)
+
+        # Créer les buffers pour les fichiers CSV divisés
+        clean_buffer = StringIO()
+        rest_buffer = StringIO()
+
+        clean_writer = csv.writer(clean_buffer)
+        rest_writer = csv.writer(rest_buffer)
+
+        # Écrire les colonnes requises dans clean_buffer
+        clean_writer.writerow([header[i] for i in required_indices])
+        clean_writer.writerow([second_line[i] for i in required_indices])
+        for row in reader:
+            clean_writer.writerow([row[i] for i in required_indices])
+
+        # Réinitialiser le lecteur pour les autres colonnes
+        file_like_object.seek(0)
+        reader = csv.reader(file_like_object)
+        header = next(reader)
+        second_line = next(reader)
+
+        # Écrire les autres colonnes dans rest_buffer
+        rest_writer.writerow([header[i] for i in other_indices])
+        rest_writer.writerow([second_line[i] for i in other_indices])
+        for row in reader:
+            rest_writer.writerow([row[i] for i in other_indices])
+
+        # Stocker les résultats dans les dictionnaires
+        clean_csv_files[filename] = clean_buffer.getvalue()
+        rest_csv_files[filename] = rest_buffer.getvalue()
+
+    # Afficher des boutons pour télécharger les fichiers CSV traités
+    st.write("Fichiers CSV divisés.")
+
+    # Fonction pour séparer les colonnes requises et non requises
+    def split_columns(header, second_line, required_elements):
+        required_indices = [i for i, col in enumerate(second_line) if col in required_elements]
+        other_indices = [i for i, col in enumerate(second_line) if col not in required_elements]
+        return required_indices, other_indices
+
+    # Fonction pour renommer la deuxième occurrence de "Taux" en "Taux 2"
+    def rename_second_taux(csv_content):
+        file_like_object = StringIO(csv_content)
+        reader = csv.reader(file_like_object)
+        lines = list(reader)
 
         if len(lines) > 1:
             second_line = lines[1]
@@ -336,181 +298,53 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
             if len(taux_indices) > 1:
                 second_line[taux_indices[1]] = 'Taux 2'
 
-        with open(file_path, mode='w', newline='', encoding='utf-8') as outfile:
-            writer = csv.writer(outfile)
-            writer.writerows(lines)
+        output_buffer = StringIO()
+        writer = csv.writer(output_buffer)
+        writer.writerows(lines)
+        return output_buffer.getvalue()
 
-
-
-
-    def transform_to_two_lines(file_path, required_elements, required_elements2):
-        headers_row = []
-        values_row = []
-        code_libelle_dict = {}
-        errors = []
-
-        with open(file_path, mode='r', encoding='utf-8') as infile:
-            reader = csv.reader(infile)
-            header = next(reader) 
-            second_line = next(reader)  
-
-            code_index = second_line.index('Code') if 'Code' in second_line else None
-            libelle_index = second_line.index('Libellé') if 'Libellé' in second_line else None
-            codelibelle_index = second_line.index('CodeLibellé') if 'CodeLibellé' in second_line else None
-
-            rubriques = []
-            if codelibelle_index is not None:
-                for row in reader:
-                    rubrique = row[codelibelle_index]
-                    if rubrique and rubrique[0].isdigit():
-                        code = rubrique[:4] 
-                        libelle = rubrique[5:].strip() if len(rubrique) > 4 else ''
-                        if libelle:
-                            code_libelle_dict[code] = libelle
-                        rubriques.append(rubrique)
-                        headers_row.extend([
-                            f"{rubrique}Base",
-                            f"{rubrique}Taux",
-                            f"{rubrique}Montant Sal.",
-                            f"{rubrique}Taux 2",
-                            f"{rubrique}Montant Pat."
-                        ])
-            elif code_index is not None and libelle_index is not None:
-                for row in reader:
-                    rubrique = f"{row[code_index]}{row[libelle_index]}"
-                    if rubrique and rubrique[0].isdigit():
-                        code = rubrique[:4]  
-                        libelle = row[libelle_index].strip()
-                        if libelle: 
-                            code_libelle_dict[code] = libelle
-                        rubriques.append(rubrique)
-                        headers_row.extend([
-                            f"{rubrique}Base",
-                            f"{rubrique}Taux",
-                            f"{rubrique}Montant Sal.",
-                            f"{rubrique}Taux 2",
-                            f"{rubrique}Montant Pat."
-                        ])
-
-            infile.seek(0)
-            next(reader) 
-            next(reader)  
-
-            values_row = ['' for _ in range(len(headers_row))]
-
-            
-            for row in reader:
-                if codelibelle_index is not None:
-                    code_libelle = row[codelibelle_index]
-                    if code_libelle and code_libelle[0].isdigit():
-                        code_libelle = code_libelle[:4]  
-                elif code_index is not None and libelle_index is not None:
-                    code_libelle = f"{row[code_index]}{row[libelle_index]}"
-                    if code_libelle and code_libelle[0].isdigit():
-                        code_libelle = code_libelle[:4]  
-                else:
-                    errors.append("Les colonnes 'Code' et 'Libellé' ou 'CodeLibellé' sont manquantes")
-                    return [headers_row, values_row, code_libelle_dict, errors]  
-
-                rubrique_base_header = f"{code_libelle}Base"
-                try:
-                    rubrique_index = headers_row.index(rubrique_base_header) // 5 * 5  
-                    for i, col in enumerate(['Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']):
-                        if col in second_line:
-                            col_index = second_line.index(col)
-                            values_row[rubrique_index + i] = row[col_index]
-                except ValueError:
-                    errors.append(f"Erreur dans le fichier {file_path}: En-tête '{rubrique_base_header}' introuvable.")
-
-        return [headers_row, values_row, code_libelle_dict, errors]
-
-
-
-    for filename in os.listdir(clean_output_directory):
-        if filename.endswith(".csv") and filename != "bulletins_propres":
-            file_path = os.path.join(clean_output_directory, filename)
-
-            required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']
-            required_elements2 = ['Code', 'Libellé', 'Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']
-
-            try:
-                headers_row, values_row, new_code_libelle_dict, file_errors = transform_to_two_lines(
-                    file_path, required_elements, required_elements2)
-                code_libelle_dict.update(new_code_libelle_dict)
-                errors.extend(file_errors)
-
-                rubriques_codes_from_files.update(new_code_libelle_dict.keys())
-
-                clean_file_path = os.path.join(cleaner_output_directory, "restructured_" + filename)
-                with open(clean_file_path, mode='w', newline='', encoding='utf-8') as clean_outfile:
-                    writer = csv.writer(clean_outfile)
-                    writer.writerow(headers_row)
-                    writer.writerow(values_row)
-            except ValueError as e:
-                errors.append(f"Erreur dans le fichier {filename}: {e}")
-
-    sorted_code_libelle = sorted(code_libelle_dict.items())
-
-    dictionnaire_file_path = "./Dictionnaire2.txt"
-    with open(dictionnaire_file_path, mode='w', encoding='utf-8') as dict_file:
-        for code, libelle in sorted_code_libelle:
-            dict_file.write(f"{code} : {libelle}\n")
-
-    final_codes = set()
-    with open(dictionnaire_file_path, mode='r', encoding='utf-8') as dict_file:
-        for line in dict_file:
-            code = line.split(':')[0].strip()
-            final_codes.add(code)
-
-    missing_codes = rubriques_codes_from_files - final_codes
-
-    errors_file_path = "errors.txt"
-    with open(errors_file_path, mode='w', encoding='utf-8') as errors_file:
-        for error in errors:
-            errors_file.write(f"{error}\n")
+    # Fonction pour générer un taux aléatoire autour du taux initial
     def generer_taux_2(taux_initial):
         return round(random.uniform(taux_initial - 0.2, taux_initial + 0.2), 2)
 
+    # Fonction pour convertir une valeur en float en toute sécurité
     def safe_float_conversion(value):
         try:
             return float(value)
         except ValueError:
-            return None  
-    
-    def transform_to_two_lines(file_path, required_elements, required_elements2):
+            return None
+
+    def transform_to_two_lines(csv_content, required_elements_new, required_elements2_new):
         headers_row = []
         values_row = []
 
-        with open(file_path, mode='r', encoding='utf-8') as infile:
-            reader = csv.reader(infile)
-            header = next(reader)  
-            second_line = next(reader)
+        # Créer un objet similaire à un fichier à partir de csv_content
+        file_like_object = StringIO(csv_content)
+        reader = csv.reader(file_like_object)
 
-            code_index = second_line.index('Code') if 'Code' in second_line else None
-            libelle_index = second_line.index('Libellé') if 'Libellé' in second_line else None
-            codelibelle_index = second_line.index('CodeLibellé') if 'CodeLibellé' in second_line else None
+        # Lire l'en-tête et la deuxième ligne
+        header = next(reader, None)
+        second_line = next(reader, None)
 
-            rubriques = []
-            if codelibelle_index is not None:
-                for row in reader:
-                    rubrique = row[codelibelle_index]
+        # Validation des colonnes: Assouplissement de la condition
+        if not any(all(elem in second_line for elem in req_set) for req_set in (required_elements_new, required_elements2_new)):
+            raise ValueError("Les colonnes requises ne sont pas présentes dans le fichier CSV.")
+
+        # Trouver les index des colonnes
+        code_index = second_line.index('Code') if 'Code' in second_line else None
+        libelle_index = second_line.index('Libellé') if 'Libellé' in second_line else None
+        codelibelle_index = second_line.index('CodeLibellé') if 'CodeLibellé' in second_line else None
+
+        # Initialiser la liste des rubriques
+        rubriques = []
+
+        # Parcourir le fichier CSV pour construire les en-têtes
+        if codelibelle_index is not None:
+            for row in reader:
+                rubrique = row[codelibelle_index]
+                if rubrique and rubrique[0].isdigit():
+                    rubrique = rubrique[:4]  # Utiliser les 4 premiers caractères pour la rubrique
                     if rubrique not in rubriques:
-                        if rubrique and rubrique[0].isdigit():
-                            rubrique = rubrique[:4]  
-                        rubriques.append(rubrique)
-                        headers_row.extend([
-                            f"{rubrique}Base",
-                            f"{rubrique}Taux",
-                            f"{rubrique}Montant Sal.",
-                            f"{rubrique}Taux 2", 
-                            f"{rubrique}Montant Pat."
-                        ])
-            elif code_index is not None and libelle_index is not None:
-                for row in reader:
-                    rubrique = f"{row[code_index]}{row[libelle_index]}"
-                    if rubrique not in rubriques:
-                        if rubrique and rubrique[0].isdigit():
-                            rubrique = rubrique[:4]  
                         rubriques.append(rubrique)
                         headers_row.extend([
                             f"{rubrique}Base",
@@ -519,62 +353,81 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
                             f"{rubrique}Taux 2",  
                             f"{rubrique}Montant Pat."
                         ])
-
-            infile.seek(0)
-            next(reader)  
-            next(reader)  
-
-           
-            values_row = ['' for _ in range(len(headers_row))]
-
-            
+        elif code_index is not None and libelle_index is not None:
             for row in reader:
-                if codelibelle_index is not None:
-                    code_libelle = row[codelibelle_index]
-                    if code_libelle and code_libelle[0].isdigit():
-                        code_libelle = code_libelle[:4]  
-                elif code_index is not None and libelle_index is not None:
-                    code_libelle = f"{row[code_index]}{row[libelle_index]}"
-                    if code_libelle and code_libelle[0].isdigit():
-                        code_libelle = code_libelle[:4]  
-                else:
-                    raise ValueError("Les colonnes 'Code' et 'Libellé' ou 'CodeLibellé' sont manquantes")
+                rubrique = f"{row[code_index]}{row[libelle_index]}"
+                if rubrique and rubrique[0].isdigit():
+                    rubrique = rubrique[:4]  # Utiliser les 4 premiers caractères pour la rubrique
+                    if rubrique not in rubriques:
+                        rubriques.append(rubrique)
+                        headers_row.extend([
+                            f"{rubrique}Base",
+                            f"{rubrique}Taux",
+                            f"{rubrique}Montant Sal.",
+                            f"{rubrique}Taux 2",  
+                            f"{rubrique}Montant Pat."
+                        ])
+        
+        # Réinitialiser le lecteur pour lire à nouveau les lignes
+        file_like_object.seek(0)
+        reader = csv.reader(file_like_object)
+        next(reader)  # Ignorer la première ligne (header)
+        next(reader)  # Ignorer la deuxième ligne (second_line)
 
-                rubrique_index = headers_row.index(f"{code_libelle}Base") // 5 * 5  
+        values_row = ['' for _ in range(len(headers_row))]
+
+        # Remplir les valeurs pour chaque rubrique
+        for row in reader:
+            if codelibelle_index is not None:
+                code_libelle = row[codelibelle_index]
+                if code_libelle and code_libelle[0].isdigit():
+                    code_libelle = code_libelle[:4]  # Utiliser les 4 premiers caractères
+            elif code_index is not None and libelle_index is not None:
+                code_libelle = f"{row[code_index]}{row[libelle_index]}"
+                if code_libelle and code_libelle[0].isdigit():
+                    code_libelle = code_libelle[:4]  # Utiliser les 4 premiers caractères
+            else:
+                raise ValueError("Les colonnes 'Code' et 'Libellé' ou 'CodeLibellé' sont manquantes")
+
+            # Gestion de l'index pour la rubrique
+            try:
+                rubrique_index = headers_row.index(f"{code_libelle}Base") // 5 * 5
                 for i, col in enumerate(['Base', 'Taux', 'Montant Sal.', 'Taux 2', 'Montant Pat.']):
                     if col in second_line:
                         col_index = second_line.index(col)
                         values_row[rubrique_index + i] = row[col_index]
+            except ValueError:
+                continue
 
-                
-                taux_value = safe_float_conversion(values_row[rubrique_index + 1])  
-                if taux_value is not None:  
-                    taux_2_value = generer_taux_2(taux_value)  
-                    values_row[rubrique_index + 3] = taux_2_value  
-
-        return [headers_row, values_row]
-
-    for filename in os.listdir(clean_output_directory):
-        if filename.endswith(".csv") and filename != "bulletins_propres":
-            file_path = os.path.join(clean_output_directory, filename)
-            required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Montant Pat.']
-            required_elements2 = ['Code', 'Libellé', 'Base', 'Taux', 'Montant Sal.', 'Montant Pat.']
-
-            try:
-                headers_row, values_row = transform_to_two_lines(file_path, required_elements, required_elements2)
-
-                clean_file_path = os.path.join(cleaner_output_directory, "restructured_" + filename)
-                with open(clean_file_path, mode='w', newline='', encoding='utf-8') as clean_outfile:
-                    writer = csv.writer(clean_outfile)
-                    writer.writerow(headers_row)
-                    writer.writerow(values_row)
-                    
-            except ValueError as e:
-                st.write(f"Erreur: {e}")
+        return headers_row, values_row
 
 
-    st.write("Fichiers CSV restructurés et sauvegardés dans les répertoires appropriés.")
 
+    restructured_files = {}
+
+    # Traiter et restructurer les fichiers
+    for filename, csv_content in clean_csv_files.items():
+
+        try:
+            headers_row, values_row = transform_to_two_lines(csv_content, required_elements_new, required_elements2_new)
+
+            # Créer un buffer CSV pour le fichier restructuré
+            restructured_buffer = StringIO()
+            writer = csv.writer(restructured_buffer)
+            writer.writerow(headers_row)
+            writer.writerow(values_row)
+            
+            # Stocker le fichier restructuré en mémoire
+            restructured_files[filename] = restructured_buffer.getvalue()
+
+        except ValueError as e:
+            st.write(f"Erreur lors du traitement de {filename}: {e}")
+
+    # Vérifier si les fichiers ont bien été ajoutés
+    if restructured_files:
+        st.write(f"{len(restructured_files)} fichiers restructurés prêts à être téléchargés.")
+    else:
+        st.write("Aucun fichier restructuré disponible.")
 
     def convert_to_float(value):
         if value:
@@ -585,55 +438,55 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
                 return None
         return None
 
-    def process_csv_files(directory):
-        for filename in os.listdir(directory):
-            if filename.endswith(".csv"):
-                file_path = os.path.join(directory, filename)
-                with open(file_path, mode='r', encoding='utf-8') as file:
-                    reader = csv.DictReader(file)
-                    data = list(reader)
-                    headers = reader.fieldnames
 
-                for row in data:
-                    for header in headers:
-                        if 'Base' in header:
-                            rubrique_base = header
-                            rubrique_montant_pat = header.replace('Base', 'Montant Pat.')
-                            rubrique_taux_2 = header.replace('Base', 'Taux 2')
+    def process_csv_in_memory(csv_contents):
+        csv_files = {}
+        
+        # Trier les fichiers CSV par ordre alphabétique des noms
+        for filename in sorted(csv_contents.keys()):  # Trier les fichiers par ordre alphabétique
+            csv_content = csv_contents[filename]
+            file_like_object = StringIO(csv_content)
+            reader = csv.DictReader(file_like_object)
+            data = list(reader)
+            headers = reader.fieldnames
 
-                            if rubrique_montant_pat in headers and rubrique_taux_2 in headers:
-                                base = row.get(rubrique_base)
-                                if base == 'NET A PAYER AVANT IMPÔT SUR LE REVENU':
-                                    base = ''
-                                montant_pat = row.get(rubrique_montant_pat)
-                                base_float = convert_to_float(base)
-                                montant_pat_float = convert_to_float(montant_pat)
-                                if base_float and montant_pat_float and not row.get(rubrique_taux_2):
-                                    row[rubrique_taux_2] = round((montant_pat_float / base_float) * 100, 3)
+            for row in data:
+                for header in headers:
+                    if 'Base' in header:
+                        rubrique_base = header
+                        rubrique_montant_pat = header.replace('Base', 'Montant Pat.')
+                        rubrique_taux_2 = header.replace('Base', 'Taux 2')
 
-                output_directory = os.path.join(directory, 'processed')
-                os.makedirs(output_directory, exist_ok=True)
-                output_file_path = os.path.join(output_directory, filename)
-                with open(output_file_path, mode='w', newline='', encoding='utf-8') as file:
-                    writer = csv.DictWriter(file, fieldnames=headers)
-                    writer.writeheader()
-                    writer.writerows(data)
+                        if rubrique_montant_pat in headers and rubrique_taux_2 in headers:
+                            base = row.get(rubrique_base)
+                            if base == 'NET A PAYER AVANT IMPÔT SUR LE REVENU':
+                                base = ''
+                            montant_pat = row.get(rubrique_montant_pat)
+                            base_float = convert_to_float(base)
+                            montant_pat_float = convert_to_float(montant_pat)
+                            if base_float and montant_pat_float and not row.get(rubrique_taux_2):
+                                row[rubrique_taux_2] = round((montant_pat_float / base_float) * 100, 3)
 
-    process_csv_files(cleaner_output_directory)
+            # Enregistrer le contenu traité dans un buffer mémoire
+            output_buffer = StringIO()
+            writer = csv.DictWriter(output_buffer, fieldnames=headers)
+            writer.writeheader()
+            writer.writerows(data)
+            csv_files[filename] = output_buffer.getvalue()
 
-    def read_csv(file_path):
-        with open(file_path, mode='r', encoding='utf-8') as infile:
-            reader = csv.reader(infile)
-            headers_row = next(reader)
-            values_rows = list(reader)
-        return headers_row, values_rows
+        return csv_files
 
-    def merge_csv_files(files):
+    # Fonction pour fusionner les fichiers CSV en mémoire
+    def merge_csv_in_memory(csv_files):
         combined_headers = []
         combined_data = []
 
-        for i, file in enumerate(files):
-            headers, rows = read_csv(file)
+        # Trier les fichiers CSV par ordre alphabétique des noms
+        for i, (filename, csv_content) in enumerate(sorted(csv_files.items())):  # Trier par ordre alphabétique
+            file_like_object = StringIO(csv_content)
+            reader = csv.reader(file_like_object)
+            headers = next(reader)
+            rows = list(reader)
 
             if i == 0:
                 combined_headers = headers
@@ -655,6 +508,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
 
         return combined_headers, combined_data
 
+    # Fonction pour ajouter la colonne "Taux 2" si elle n'existe pas déjà
     def add_taux_2_columns(combined_headers, combined_data):
         code_pattern = re.compile(r'^(\d{4})\s')
 
@@ -664,7 +518,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
                 code = match.group(1)
                 base_column = f'{code}Base'
                 montant_pat_column = f'{code}Montant Pat.'
-                taux_2_column = f'{code} Taux 2'
+                taux_2_column = f'{code}Taux 2'
 
                 if base_column in combined_headers and montant_pat_column in combined_headers:
                     base_idx = combined_headers.index(base_column)
@@ -680,11 +534,8 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
                             taux_2_value = base_value / montant_pat_value if montant_pat_value != 0 else ''
 
                             if taux_2_value != '':
-                                if code == '7C00' :
-                                    taux_2_value = format(round(taux_2_value, 2), '.2f')
-                                else :
-                                    taux_2_value = format(round(taux_2_value, 2), '.3f')
-                        except (ValueError, TypeError): 
+                                taux_2_value = format(round(taux_2_value, 3), '.3f')
+                        except (ValueError, TypeError):
                             taux_2_value = ''
 
                         if len(row) < len(combined_headers):
@@ -692,66 +543,52 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
                         else:
                             row[combined_headers.index(taux_2_column)] = taux_2_value
 
-        for i, header in enumerate(combined_headers):
-            if 'Taux 2' in header:
-                for row in combined_data:
-                    if i < len(row): 
-                        try:
-                            taux_2_value = float(row[i])
-                            row[i] = format(round(taux_2_value, 2), '.2f')
-                        except (ValueError, TypeError): 
-                            row[i] = ''
+        return combined_headers, combined_data
+
+    # Fonction pour écrire le CSV fusionné et retourné sous forme de StringIO
+    def write_combined_csv_to_memory(combined_headers, combined_data):
+        output_buffer = StringIO()
+        writer = csv.writer(output_buffer)
+        writer.writerow(combined_headers)
+        writer.writerows(combined_data)
+        return output_buffer.getvalue()
+
+    # Traiter et fusionner les fichiers CSV
+    processed_csv_files = process_csv_in_memory(restructured_files)
+    combined_headers, combined_data = merge_csv_in_memory(processed_csv_files)
+    combined_headers, combined_data = add_taux_2_columns(combined_headers, combined_data)
+    combined_csv_content = write_combined_csv_to_memory(combined_headers, combined_data)
+
+    st.write("Traitement des fichiers CSV terminé.")
 
 
-
-
-    def write_combined_csv(output_file, combined_headers, combined_data):
-        with open(output_file, mode='w', newline='', encoding='utf-8') as outfile:
-            writer = csv.writer(outfile)
-            writer.writerow(combined_headers)
-            writer.writerows(combined_data)
-
-    def extract_page_number(filename):
-        match = re.search(r'_page_(\d+)', filename)
-        return int(match.group(1)) if match else float('inf')
-
-    input_files = [os.path.join(processed_directory, filename) for filename in os.listdir(processed_directory) if filename.endswith('.csv')]
-
-    input_files.sort(key=lambda f: extract_page_number(f))
-
-    output_file = './combined_output.csv'
-
-    combined_headers, combined_data = merge_csv_files(input_files)
-
-    add_taux_2_columns(combined_headers, combined_data)
-
-    write_combined_csv(output_file, combined_headers, combined_data)
-
-    st.write("Combined CSV file with Taux 2 columns has been saved.")
-
-    def update_headers(file_path, output_path):
-        df = pd.read_csv(file_path, header=None)
+    # Fonction pour mettre à jour les en-têtes des fichiers CSV en mémoire
+    def update_headers(csv_content):
+        df = pd.read_csv(StringIO(csv_content), header=None)
 
         new_headers = []
 
         for column in df:
-            column_values = df[column].astype(str)  
+            column_values = df[column].astype(str)
             if 'Abs.' in column_values.values:
                 new_headers.append('Abs.')
             elif 'Date Equipe Hor.Abs.' in column_values.values:
                 new_headers.append('Date Equipe Hor.Abs.')
             else:
-                new_headers.append(df.columns[column]) 
+                new_headers.append(df.columns[column])
         df.columns = new_headers
 
-        df.to_csv(output_path, index=False)
-
-    for file_path in os.listdir(rest_output_directory) :
-        if filename.endswith('.csv'):
-            file_path_upd= os.path.join(rest_output_directory,file_path)
-            update_headers(file_path_upd,file_path_upd)
+        output_buffer = StringIO()
+        df.to_csv(output_buffer, index=False)
+        return output_buffer.getvalue()
 
 
+    updated_csv_files = {}
+
+    for filename, csv_content in rest_csv_files.items():
+        updated_csv_files[filename] = update_headers(csv_content)
+
+    # Fonction pour traiter un DataFrame et calculer les absences
     def process_dataframe(df):
         absences_par_jour = 0
         absences_par_heure = 0.0
@@ -759,155 +596,111 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
         columns_to_check = [col for col in df.columns if 'Abs.' in col or 'Date Equipe Hor.Abs.' in col]
 
         for col in columns_to_check:
-            for cell in df[col].astype(str): 
-                cell = cell.strip() 
-
+            for cell in df[col].astype(str):
+                cell = cell.strip()
                 if 'AB' in cell:
-                    absences_par_jour += 1 
+                    absences_par_jour += 1
                     match = re.search(r'(\d+(?:\.\d+)?)AB$', cell)
                     if match:
-                        absences_par_heure += float(match.group(1))  
+                        absences_par_heure += float(match.group(1))
 
         return absences_par_jour, absences_par_heure
 
-    def extract_page_number(filename):
-        match = re.search(r'_page_(\d+)', filename)
-        return int(match.group(1)) if match else float('inf')  
+    # Fonction pour traiter les fichiers CSV en mémoire et générer un rapport d'absences
+    def generate_absences_report(csv_files):
+        report_data = [['Nom du Fichier', 'Absences par Jour', 'Absences par Heure']]
 
-    def generate_absences_report(input_directory, output_file):
-        report_data = [
-            ['Nom du Fichier', 'Absences par Jour', 'Absences par Heure']
-        ]
-
-        files = [f for f in os.listdir(input_directory) if f.endswith('.csv')]
-        files.sort(key=lambda f: extract_page_number(f))
-
-        for filename in files:
-            file_path = os.path.join(input_directory, filename)
-            absences_par_jour, absences_par_heure = process_csv_file(file_path)
+        for filename, csv_content in csv_files.items():
+            df = pd.read_csv(StringIO(csv_content))
+            absences_par_jour, absences_par_heure = process_dataframe(df)
             report_data.append([filename, absences_par_jour, absences_par_heure])
 
-        with open(output_file, mode='w', newline='', encoding='utf-8') as outfile:
-            writer = csv.writer(outfile)
-            writer.writerows(report_data)
+        output_buffer = StringIO()
+        writer = csv.writer(output_buffer)
+        writer.writerows(report_data)
+        return output_buffer.getvalue()
 
-    absence_output_file = './Absences.csv'
+    # Générer un rapport d'absences à partir des fichiers CSV en mémoire
+    absence_report_csv = generate_absences_report(updated_csv_files)
 
-    generate_absences_report(rest_output_directory, absence_output_file)
-
-    
-
-    matricules_file_path = "./CSV3/matricules/matricules.csv"
-    combined_output_file_path = "./combined_output.csv"
-    output_file_path = "./merged_output.csv"
-
-    
-    matricules = []
-    with open(matricules_file_path, mode='r', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        next(reader)  
-        for i, row in enumerate(reader):
-            if i < 600 and row:  
-                matricules.append(row[0])
-            elif i >= 600 :
-                break
-    combined_data = []
-    with open(combined_output_file_path, mode='r', encoding='utf-8') as file:
-        reader = csv.reader(file)
+    # Fonction pour fusionner les bulletins avec les matricules en mémoire
+    def merge_bulletins_with_matricules(matricules, combined_csv_content):
+        combined_data = []
+        reader = csv.reader(StringIO(combined_csv_content))
         combined_data = [row for row in reader]
 
-    if len(matricules) > len(combined_data) - 1:  
-        st.write(len(matricules))
-        st.write(len(combined_data)-1)
-        raise ValueError("Le fichier de matricules contient plus de lignes que le fichier combined_output.")
+        if len(matricules) > len(combined_data) - 1:
+            raise ValueError("Le fichier de matricules contient plus de lignes que le fichier combined_output.")
 
-    merged_data = []
+        merged_data = []
+        merged_data.append(["Matricule"] + combined_data[0])
 
-    merged_data.append(["Matricule"] + combined_data[0])
+        for i, row in enumerate(combined_data[1:], start=1):
+            if i <= len(matricules):
+                matricule = matricules[i - 1]
+                merged_data.append([matricule] + row)
+            else:
+                break
 
-    for i, row in enumerate(combined_data[1:], start=1):
-        if i <= len(matricules):  
-            matricule = matricules[i - 1]
-            merged_data.append([matricule] + row)
-        else:
-            break
-
-    with open(output_file_path, mode='w', encoding='utf-8', newline='') as file:
-        writer = csv.writer(file)
+        output_buffer = StringIO()
+        writer = csv.writer(output_buffer)
         writer.writerows(merged_data)
+        return output_buffer.getvalue()
 
-    st.write(f"Tableau combiné avec les 3 premières matricules enregistré dans {output_file_path}.")
-
-    main_table = pd.read_csv(main_table_path)
-    cumul_data = pd.read_excel(uploaded_file_1, engine='openpyxl')
-    info_salaries_data = pd.read_excel(uploaded_file_2, engine='openpyxl')
-    absences_data = pd.read_csv(absences_path)
-
-    def convert_to_float(value):
-        if pd.notnull(value):  
-            try:
-                value_str = str(value).strip()
-
-                if value_str.endswith('-'):
-                    value_str = '-' + value_str[:-1]
-
-                value_str = value_str.replace('.', '').replace(',', '.')
-
-                return pd.to_numeric(value_str, errors='coerce')
-            except ValueError:
-                return value
-        return value
+    # Simuler les matricules et le fichier combiné
+    matricules = sorted(list(all_matricules))
 
 
-    for col in main_table.columns:
-        if main_table[col].dtype == 'object':
-            main_table[col] = main_table[col].apply(convert_to_float)
+    # Fusionner les bulletins avec les matricules
+    merged_csv_content = merge_bulletins_with_matricules(matricules, combined_csv_content)
 
-    main_table['Matricule'] = main_table['Matricule'].astype(str)
-    cumul_data['Matricule'] = cumul_data['Matricule'].astype(str)
-    info_salaries_data['Matricule'] = info_salaries_data['Matricule'].astype(str)
+    # Lecture des fichiers uploadés (en mémoire)
+    if uploaded_file_1 is not None and uploaded_file_2 is not None:
+        cumul_data = pd.read_excel(uploaded_file_1)
+        info_salaries_data = pd.read_excel(uploaded_file_2)
 
-    merged_df = main_table.merge(cumul_data, on='Matricule', how='left')
-    final_df = merged_df.merge(info_salaries_data, on='Matricule', how='left')
+        # Conversion des types et fusion avec les autres fichiers CSV
+        def convert_to_float(value):
+            if pd.notnull(value):
+                try:
+                    value_str = str(value).strip()
+                    if value_str.endswith('-'):
+                        value_str = '-' + value_str[:-1]
+                    value_str = value_str.replace('.', '').replace(',', '.')
+                    return pd.to_numeric(value_str, errors='coerce')
+                except ValueError:
+                    return value
+            return value
 
-    cols = list(final_df.columns)
+        main_table = pd.read_csv(StringIO(merged_csv_content))
+        for col in main_table.columns:
+            if main_table[col].dtype == 'object':
+                main_table[col] = main_table[col].apply(convert_to_float)
 
-    
-    if 'Nom Prénom' in cols:
-        cols.insert(1, cols.pop(cols.index('Nom Prénom')))
-    final_df = final_df[cols]
+        main_table['Matricule'] = main_table['Matricule'].astype(str)
+        cumul_data['Matricule'] = cumul_data['Matricule'].astype(str)
+        info_salaries_data['Matricule'] = info_salaries_data['Matricule'].astype(str)
 
-    if 'Nom' in final_df.columns:
-        final_df = final_df.drop(columns=['Nom'])
+        merged_df = main_table.merge(cumul_data, on='Matricule', how='left')
+        final_df = merged_df.merge(info_salaries_data, on='Matricule', how='left')
 
-    if 'Nom du Fichier' in absences_data.columns:
-        absences_data = absences_data.drop(columns=['Nom du Fichier'])
+        # Réarranger les colonnes si nécessaire
+        cols = list(final_df.columns)
+        if 'Nom Prénom' in cols:
+            cols.insert(1, cols.pop(cols.index('Nom Prénom')))
+        final_df = final_df[cols]
 
-    if len(final_df) > len(absences_data):
-        absences_data = absences_data.reindex(range(len(final_df))).fillna('')
-    elif len(final_df) < len(absences_data):
-        final_df = final_df.reindex(range(len(absences_data))).fillna('')
+        # Sauvegarder le résultat final dans un buffer CSV
+        output_buffer = StringIO()
+        final_df.to_csv(output_buffer, index=False)
+        final_csv_content = output_buffer.getvalue()
 
-    concatenated_df = pd.concat([final_df, absences_data], axis=1)
+        # Proposer le fichier final en téléchargement
+        st.download_button(
+            label="Télécharger le fichier fusionné",
+            data=final_csv_content,
+            file_name="fichier_fusionné.csv",
+            mime="text/csv"
+        )
 
-
-
-    concatenated_df.to_csv(final_output_csv_path, index=False)
-
-    csv_data = concatenated_df.to_csv(index=False).encode('utf-8')
-
-    st.write(f"Fichier sauvegardé sous {final_output_csv_path}")
-
-    st.download_button(
-        label="Download fichier restructuré",
-        data=csv_data,
-        file_name="Fichier restrucuturé.csv",
-        mime="text/csv"
-    )
-    csv_files_to_delete = glob.glob(os.path.join(output_dir, "**", "*.csv"), recursive=True)
-
-    for csv_file in csv_files_to_delete:
-        try:
-            os.remove(csv_file)
-        except Exception as e:
-            st.write(f"Erreur lors de la suppression du fichier {csv_file}: {e}")
+        st.write("Fusion des fichiers Excel et CSV terminée.")
