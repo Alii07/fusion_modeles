@@ -1,0 +1,13 @@
+name: camelot-streamlit
+channels:
+  - conda-forge
+dependencies:
+  - altair
+  - pandas
+  - camelot-py
+  - anaconda::opencv
+  - pip
+  - pip:
+    - streamlit
+    - jupyter-server-proxy==1.2.0
+    - nbserverproxy==0.8.8
