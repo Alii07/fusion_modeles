@@ -1,51 +1,37 @@
-import pdfplumber
+import camelot
 import pandas as pd
+import os
+import re
+import csv
+import shutil
+from PyPDF2 import PdfReader
 import streamlit as st
+import random
 import tempfile
+import glob
+import streamlit as st
+import camelot
+import pandas as pd
+import os
+import tempfile
+import concurrent.futures
 from io import StringIO
 
-# Fonction pour renommer les colonnes dupliquées
-def rename_duplicate_columns(df):
-    cols = pd.Series(df.columns)
-    for dup in cols[cols.duplicated()].unique():
-        cols[cols[cols == dup].index.values.tolist()] = [f"{dup}_{i}" for i in range(sum(cols == dup))]
-    df.columns = cols
-    return df
 
-# Fonction pour extraire les tables avec pdfplumber
-def extract_largest_table_from_page(page):
-    tables_on_page = page.extract_tables()
-    largest_table = None
-    largest_size = 0
+def extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages):
+    try:
+        tables_stream = camelot.read_pdf(
+            pdf_file_path,
+            flavor='stream',
+            pages=pages,
+            strip_text='\n',
+            edge_tol=edge_tol,
+            row_tol=row_tol
+        )
+        return tables_stream
 
-    if tables_on_page:
-        # Trouver le tableau ayant le plus grand nombre de cellules
-        for table in tables_on_page:
-            df_table = pd.DataFrame(table[1:], columns=table[0])  # Convertir en DataFrame
-            current_size = df_table.shape[0] * df_table.shape[1]  # Calculer la taille du tableau
-            if current_size > largest_size:
-                largest_size = current_size
-                largest_table = df_table
-
-    return largest_table
-
-# Extraction des tableaux du PDF
-def extract_tables_from_pdf(pdf_file_path):
-    tables = []
-    with pdfplumber.open(pdf_file_path) as pdf:
-        for i, page in enumerate(pdf.pages, 1):
-            st.write(f"Extraction des tableaux de la page {i}...")
-            largest_table = extract_largest_table_from_page(page)
-            
-            if largest_table is not None:
-                # Renommer les colonnes dupliquées
-                largest_table = rename_duplicate_columns(largest_table)
-                
-                # Supprimer les colonnes avec des noms `None`
-                largest_table = largest_table.loc[:, ~largest_table.columns.isnull()]
-                
-                tables.append((i, largest_table))
-    return tables
+    except Exception as e:
+        return None
 
 @st.cache_data
 def save_table_to_memory_csv(df):
@@ -54,40 +40,98 @@ def save_table_to_memory_csv(df):
     csv_buffer.seek(0)
     return csv_buffer.getvalue()
 
+def check_second_line(file_content, required_elements):
+    file_like_object = StringIO(file_content)
+    reader = csv.reader(file_like_object)
+    next(reader)  # Ignorer la première ligne (header)
+    second_line = next(reader, None)  # Lire la deuxième ligne
+    if second_line and all(elem in second_line for elem in required_elements):
+        return True
+    return False
+
+def split_columns(header, second_line, required_elements):
+    required_indices = [i for i, col in enumerate(second_line) if col in required_elements]
+    other_indices = [i for i, col in enumerate(second_line) if col not in required_elements]
+    return required_indices, other_indices
+
+# Fonction pour traiter les pages du PDF
+# Fonction pour traiter les pages du PDF
+def process_pages(pdf_file_path, edge_tol, row_tol, page):
+    tables_stream = extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages=page)
+    results = []
+    if tables_stream is not None and len(tables_stream) > 0:
+        largest_table = max(tables_stream, key=lambda t: t.df.shape[0] * t.df.shape[1])
+        df_stream = largest_table.df
+        df_stream.replace('\n', '', regex=True, inplace=True)
+        df_stream.fillna('', inplace=True)
+        page_number = largest_table.parsing_report['page']
+
+        if 'Montant Sal.Taux' in df_stream.iloc[0].values:
+            refined_tables = extract_table_from_pdf(pdf_file_path, edge_tol=500, row_tol=5, pages=str(page_number))
+            if refined_tables is not None and len(refined_tables) > 0:
+                largest_table = max(refined_tables, key=lambda t: t.df.shape[0] * t.df.shape[1])
+                df_stream = largest_table.df
+                df_stream.replace('\n', '', regex=True, inplace=True)
+                df_stream.fillna('', inplace=True)
+        
+        results.append((page_number, df_stream))
+    
+    return results
+
 # Titre de l'application Streamlit
-st.title("Extraction de bulletins de paie à partir de PDF avec pdfplumber")
-
+st.title("Extraction de bulletins de paie à partir de PDF")
 uploaded_pdf = st.file_uploader("Téléverser un fichier PDF", type=["pdf"])
+uploaded_file_1 = st.file_uploader("1er fichier excel", type=['xlsx', 'xls'])
+uploaded_file_2 = st.file_uploader("2nd fichier excel", type=['xlsx', 'xls'])
 
-if uploaded_pdf is not None:
+if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 is not None:
+    # Créer un fichier temporaire pour le PDF téléchargé
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-        temp_pdf.write(uploaded_pdf.read())
+        temp_pdf.write(uploaded_pdf.read())  
         temp_pdf_path = temp_pdf.name
+    
+    # Dictionnaire pour stocker les fichiers CSV en mémoire
+    csv_files = {}
 
-    st.write(f"Extraction des tableaux pour le fichier PDF...")
+    reader = PdfReader(temp_pdf_path)
+    total_pages = len(reader.pages)
 
-    extracted_tables = extract_tables_from_pdf(temp_pdf_path)
+    current_page_count = 0
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    max_workers =  1 # Limite du nombre de threads/process
 
-    if extracted_tables:
-        for page_number, df_table in extracted_tables:
-            st.write(f"Premières lignes du tableau extrait de la page {page_number}:")
-            st.dataframe(df_table.head())
-            
-            # Sauvegarde du CSV en mémoire
-            csv_content = save_table_to_memory_csv(df_table)
-            st.download_button(
-                label=f"Télécharger le tableau de la page {page_number}",
-                data=csv_content,
-                file_name=f"table_page_{page_number}.csv",
-                mime='text/csv'
-            )
-    else:
-        st.write("Aucun tableau n'a été extrait du fichier PDF.")
+    st.write(f"Extraction des tableaux pour toutes les {total_pages} pages...")
+
+    # Utilisation de `ProcessPoolExecutor` pour traiter les pages en parallèle
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        other_page_futures = {executor.submit(process_pages, temp_pdf_path, 300, 3, str(page)): page for page in range(1, total_pages + 1)}
+        
+        for future in concurrent.futures.as_completed(other_page_futures):
+            page = other_page_futures[future]
+            try:
+                results = future.result()
+                for page_number, df_stream in results:
+                    csv_content = save_table_to_memory_csv(df_stream)
+                    csv_files[f"table_page_{page_number}.csv"] = csv_content
+
+                    # Afficher les premières lignes du tableau extrait
+                    st.write(f"Premières lignes du tableau extrait de la page {page_number}:")
+                    st.dataframe(df_stream.head())  # Affiche les premières lignes du tableau dans Streamlit
+                
+                current_page_count += 1
+                progress_value = current_page_count / total_pages
+                progress_bar.progress(progress_value)
+                status_text.text(f"Traitement : {min(current_page_count, total_pages)}/{total_pages} pages traitées")
+                
+            except Exception as e:
+                st.write(f"Erreur lors du traitement des pages {page}: {e}")
+
+    st.write("Extraction des tableaux terminée.")
 
 
-
-
-#    st.write(len(csv_files))
+    st.write(len(csv_files))
 
     # Liste des éléments requis
     required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
