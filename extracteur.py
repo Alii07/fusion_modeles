@@ -55,7 +55,6 @@ def split_columns(header, second_line, required_elements):
     return required_indices, other_indices
 
 # Fonction pour traiter les pages du PDF
-# Fonction pour traiter les pages du PDF
 def process_pages(pdf_file_path, edge_tol, row_tol, page):
     tables_stream = extract_table_from_pdf(pdf_file_path, edge_tol, row_tol, pages=page)
     results = []
@@ -100,7 +99,7 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    max_workers =  1 # Limite du nombre de threads/process
+    max_workers = 4  # Limite du nombre de threads/process
 
     st.write(f"Extraction des tableaux pour toutes les {total_pages} pages...")
 
@@ -129,9 +128,6 @@ if uploaded_pdf is not None and uploaded_file_1 is not None and uploaded_file_2 
                 st.write(f"Erreur lors du traitement des pages {page}: {e}")
 
     st.write("Extraction des tableaux terminée.")
-
-
-    st.write(len(csv_files))
 
     # Liste des éléments requis
     required_elements = ['CodeLibellé', 'Base', 'Taux', 'Montant Sal.', 'Taux', 'Montant Pat.']
