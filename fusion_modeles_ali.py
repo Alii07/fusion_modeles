@@ -103,6 +103,7 @@ def load_model(model_info):
         raise ValueError(f"Erreur lors du chargement du modèle joblib : {str(e)}")
 
 # Fonction pour appliquer IF et LOF sur les colonnes contenant des anomalies
+# Fonction pour appliquer IF et LOF sur les colonnes contenant des anomalies
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
     df_filtered = df
 
@@ -113,9 +114,9 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
     required_columns = info['numeric_cols'] + info['categorical_cols']
     missing_columns = [col for col in required_columns if col not in df_filtered.columns]
 
-    if missing_columns:
-        #st.write(f"Colonnes manquantes pour {model_name}: {missing_columns}")
-        return
+    # Créer des colonnes manquantes avec des NaN
+    for col in missing_columns:
+        df_filtered[col] = np.nan
 
     # Charger le modèle (IF et LOF)
     try:
@@ -152,16 +153,17 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         df_filtered_non_nan = df_filtered[df_filtered[anomaly_col].notna()]
 
         # Vérifier si 'is_nan' a été utilisé lors de l'entraînement du scaler
-        if 'is_nan' in scaler.feature_names_in_:
-            # Inclure 'is_nan' car il a été utilisé lors de l'entraînement du scaler
-            X_scaled_test = df_filtered_non_nan[[anomaly_col, 'is_nan']].copy()
-        else:
-            # Exclure 'is_nan' si non utilisé
-            X_scaled_test = df_filtered_non_nan[[anomaly_col]].copy()
+        # Comparer les noms des colonnes utilisées pendant l'entraînement du scaler
+        scaler_features = scaler.feature_names_in_ if hasattr(scaler, 'feature_names_in_') else []
+        missing_features = [col for col in scaler_features if col not in df_filtered_non_nan.columns]
+
+        # Ajouter les colonnes manquantes avec des valeurs par défaut
+        for feature in missing_features:
+            df_filtered_non_nan[feature] = 0  # ou np.nan selon ce qui est approprié
 
         # Appliquer la transformation sur X_scaled_test
         try:
-            X_scaled_test = scaler.transform(X_scaled_test)
+            X_scaled_test = scaler.transform(df_filtered_non_nan[[anomaly_col, 'is_nan']])
         except ValueError as e:
             st.error(f"Erreur de transformation avec scaler pour {model_name}: {str(e)}")
             continue
@@ -194,6 +196,8 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
 
             # Réintégrer les résultats dans le DataFrame original
             df.loc[df_filtered_non_nan.index, f'Combined_Anomaly_{anomaly_col}'] = df_filtered_non_nan[f'Combined_Anomaly_{anomaly_col}']
+
+
 
 def detect_anomalies(df):
     anomalies_report = {}
