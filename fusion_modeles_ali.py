@@ -198,7 +198,6 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
             df.loc[df_filtered_non_nan.index, f'Combined_Anomaly_{anomaly_col}'] = df_filtered_non_nan[f'Combined_Anomaly_{anomaly_col}']
 
 
-
 def detect_anomalies(df):
     anomalies_report = {}
     model_anomalies = {}
