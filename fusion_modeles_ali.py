@@ -173,7 +173,7 @@ def process_7010(df, model_name, info, anomalies_report, model_anomalies):
             anomalies_report.setdefault(index, set()).add(model_name)
             model_anomalies[model_name] = model_anomalies.get(model_name, 0) + 1
 
-            
+
 # Fonction pour charger les modèles IF et LOF
 
 def load_model(model_info):
