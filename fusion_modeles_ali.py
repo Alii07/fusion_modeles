@@ -63,6 +63,15 @@ models_info = {
     #    'anomaly_cols': ['7050Taux 2'],
     #    'target_col': '7050 Fraud'
     #},
+    '7001': {
+        'type' : 'joblib',
+        'model': './modèles/7001.pkl',
+        'numeric_cols': ['Matricule', 'Absences par Jour',
+       'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CUM','MALADIE CUM',  '7001Base', '7001Taux 2',
+       '7001Montant Pat.'],
+        'categorical_cols': ['Catégorie salariés', 'Statut de salariés'],
+        'target_col': '7001 Fraud'
+    },
     '7035': {
         'type': 'joblib',
         'model': './modèles/7035.pkl',
