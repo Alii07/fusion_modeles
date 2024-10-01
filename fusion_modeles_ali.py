@@ -7,6 +7,14 @@ import pickle
 
 # Modèles avec information sur les colonnes numériques et catégoriques, ainsi que les colonnes d'anomalies
 models_info = {
+        '7002': {
+        'type': 'pickle',
+        'model': './modèles/7002.pkl',
+        'numeric_cols': ['7002Taux 2'],
+        'categorical_cols': [],
+        'anomaly_cols': ['7002Taux 2'],
+        'target_col': '7002 Fraud'
+    },
     '7030': {
         'type': 'joblib',
         'model': './modèles/7030.pkl',
@@ -55,14 +63,21 @@ models_info = {
         'anomaly_cols': ['7020Taux 2'],
         'target_col': '7020 Fraud'
     },
+    #'7050': {
+    #    'type': 'joblib',
+    #    'model': './modèles/7050.pkl',
+    #    'numeric_cols': ['7050Base', '7050Taux 2', '7050Montant Pat.'],
+    #    'categorical_cols': [],
+    #    'anomaly_cols': ['7050Taux 2'],
+    #    'target_col': '7050 Fraud'
+    #},
     '7001': {
-        'type': 'joblib',
-        'model': './modèles/7001.pkl',
-        'numeric_cols': ['Absences par Jour', 'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CU', 'MALADIE CUM', '7001Base', '7001Taux 2', '7001Montant Pat.'],
-        'categorical_cols': ['Catégorie salariés', 'Statut de salariés'],
-        'anomaly_cols': ['7001Taux 2'],
-        'target_col': '7001 Fraud'
-    },
+            'type' : 'joblib',
+            'model': './modèles/7001.pkl',
+            'numeric_cols': ['Matricule', 'Absences par Jour', 'Absences par Heure', 'PLAFOND CUM', 'ASSIETTE CU', 'MALADIE CUM', '7001Base', '7001Taux 2', '7001Montant Pat.'],
+            'categorical_cols': ['Catégorie salariés', 'Statut de salariés'],
+            'target_col': '7001 Fraud'
+        },
     '7035': {
         'type': 'joblib',
         'model': './modèles/7035.pkl',
@@ -80,8 +95,6 @@ models_info = {
         'target_col': '7040 Fraud'
     }
 }
-
-
 def process_7010(df, model_name, info, anomalies_report, model_anomalies):
     model_dict = load_model(info)
 
@@ -163,8 +176,6 @@ def process_7010(df, model_name, info, anomalies_report, model_anomalies):
         if df_non_nan_2.loc[index, 'Combined_Anomaly_2'] == 1:
             anomalies_report.setdefault(index, set()).add(model_name)
             model_anomalies[model_name] = model_anomalies.get(model_name, 0) + 1
-
-
 # Fonction pour charger les modèles IF et LOF
 def load_model(model_info):
     model_path = model_info['model']
@@ -177,7 +188,6 @@ def load_model(model_info):
     except Exception as e:
         raise ValueError(f"Erreur lors du chargement du modèle joblib : {str(e)}")
 
-
 # Fonction pour appliquer IF et LOF sur les colonnes contenant des anomalies
 def process_model(df, model_name, info, anomalies_report, model_anomalies):
     df_filtered = df.copy()
@@ -185,6 +195,13 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
     if df_filtered.empty:
         st.write(f"Aucune donnée à traiter pour le modèle {model_name}.")
         return
+
+    required_columns = info['numeric_cols'] + info['categorical_cols']
+    missing_columns = [col for col in required_columns if col not in df_filtered.columns]
+
+    # Créer des colonnes manquantes avec des NaN
+    for col in missing_columns:
+        df_filtered[col] = np.nan
 
     # Charger le modèle (IF et LOF)
     try:
@@ -205,7 +222,7 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         st.error(str(e))
         return
 
-    # Utiliser les colonnes d'anomalies spécifiées (comme '7001Taux 2')
+    # Utiliser les colonnes d'anomalies si elles existent, sinon utiliser une seule colonne
     anomaly_cols = info.get('anomaly_cols', [info['numeric_cols'][0]])
 
     for anomaly_col in anomaly_cols:
@@ -217,51 +234,181 @@ def process_model(df, model_name, info, anomalies_report, model_anomalies):
         # Créer un indicateur pour les NaN
         df_filtered['is_nan'] = df_filtered[anomaly_col].isna().astype(int)
 
-        # Remplacer les NaN par une valeur par défaut (ex : 0)
-        df_filtered[anomaly_col].fillna(0, inplace=True)
+        # Filtrer les lignes sans NaN
+        df_filtered_non_nan = df_filtered[df_filtered[anomaly_col].notna()]
 
-        # Vérifier si 'is_nan' a été utilisé lors de l'entraînement du scaler
+        # Vérifier les colonnes que le scaler a vues lors de l'entraînement
         scaler_features = scaler.feature_names_in_ if hasattr(scaler, 'feature_names_in_') else []
-        features_to_scale = [anomaly_col]  # Seule la colonne 'anomaly_col'
+        missing_features = [col for col in scaler_features if col not in df_filtered_non_nan.columns]
 
+        # Ajouter les colonnes manquantes avec des valeurs par défaut (par exemple, 0 ou NaN)
+        for feature in missing_features:
+            df_filtered_non_nan[feature] = 0  # ou np.nan selon ce qui est approprié
+
+        # Vérifier si 'is_nan' doit être inclus dans la transformation
+        features_to_scale = [anomaly_col]
         if 'is_nan' in scaler_features:
-            features_to_scale.append('is_nan')  # Ajouter 'is_nan' si elle était présente à l'entraînement
+            features_to_scale.append('is_nan')
 
-        # Appliquer la transformation avec le scaler
+        # Appliquer la transformation sur X_scaled_test
         try:
-            X_scaled_test = scaler.transform(df_filtered[features_to_scale])
+            X_scaled_test = scaler.transform(df_filtered_non_nan[features_to_scale])
         except ValueError as e:
             st.error(f"Erreur de transformation avec scaler pour {model_name}: {str(e)}")
             continue
 
         # Appliquer Isolation Forest pour détecter les anomalies si iso_forest est présent
         if iso_forest is not None:
-            df_filtered[f'Anomaly_IF_{anomaly_col}'] = iso_forest.predict(X_scaled_test)
-            df_filtered[f'Anomaly_IF_{anomaly_col}'] = df_filtered[f'Anomaly_IF_{anomaly_col}'].map({1: 0, -1: 1})
+            df_filtered_non_nan[f'Anomaly_IF_{anomaly_col}'] = iso_forest.predict(X_scaled_test)
+            df_filtered_non_nan[f'Anomaly_IF_{anomaly_col}'] = df_filtered_non_nan[f'Anomaly_IF_{anomaly_col}'].map({1: 0, -1: 1})
         else:
             st.write(f"iso_forest est manquant pour {model_name}, anomalie IF non calculée.")
 
         # Appliquer LOF pour détecter les anomalies si lof est présent
         if lof is not None:
-            df_filtered[f'Anomaly_LOF_{anomaly_col}'] = lof.fit_predict(X_scaled_test)
-            df_filtered[f'Anomaly_LOF_{anomaly_col}'] = df_filtered[f'Anomaly_LOF_{anomaly_col}'].map({1: 0, -1: 1})
+            df_filtered_non_nan[f'Anomaly_LOF_{anomaly_col}'] = lof.fit_predict(X_scaled_test)
+            df_filtered_non_nan[f'Anomaly_LOF_{anomaly_col}'] = df_filtered_non_nan[f'Anomaly_LOF_{anomaly_col}'].map({1: 0, -1: 1})
         else:
             st.write(f"lof est manquant pour {model_name}, anomalie LOF non calculée.")
 
-        # Combiner les résultats des deux modèles (IF et LOF)
-        if f'Anomaly_IF_{anomaly_col}' in df_filtered.columns or f'Anomaly_LOF_{anomaly_col}' in df_filtered.columns:
-            df_filtered[f'Combined_Anomaly_{anomaly_col}'] = np.where(
-                (df_filtered.get(f'Anomaly_IF_{anomaly_col}', 0) == 1) |
-                (df_filtered.get(f'Anomaly_LOF_{anomaly_col}', 0) == 1), 1, 0
+        # Combiner les résultats des deux modèles (uniquement si l'un des modèles a produit un résultat)
+        if f'Anomaly_IF_{anomaly_col}' in df_filtered_non_nan.columns or f'Anomaly_LOF_{anomaly_col}' in df_filtered_non_nan.columns:
+            df_filtered_non_nan[f'Combined_Anomaly_{anomaly_col}'] = np.where(
+                (df_filtered_non_nan.get(f'Anomaly_IF_{anomaly_col}', 0) == 1) | 
+                (df_filtered_non_nan.get(f'Anomaly_LOF_{anomaly_col}', 0) == 1), 1, 0
             )
 
-            for index in df_filtered.index:
-                if df_filtered.loc[index, f'Combined_Anomaly_{anomaly_col}'] == 1:
+            for index in df_filtered_non_nan.index:
+                if df_filtered_non_nan.loc[index, f'Combined_Anomaly_{anomaly_col}'] == 1:
                     anomalies_report.setdefault(index, set()).add(model_name)
                     model_anomalies[model_name] = model_anomalies.get(model_name, 0) + 1
 
             # Réintégrer les résultats dans le DataFrame original
-            df.loc[df_filtered.index, f'Combined_Anomaly_{anomaly_col}'] = df_filtered[f'Combined_Anomaly_{anomaly_col}']
+            df.loc[df_filtered_non_nan.index, f'Combined_Anomaly_{anomaly_col}'] = df_filtered_non_nan[f'Combined_Anomaly_{anomaly_col}']
+
+
+def process_7001(df, model_name, info, anomalies_report, model_anomalies):
+    # Charger les modèles et scalers
+    model_dict = load_model(info)
+    iso_forest = model_dict.get('iso_forest', None)
+    scaler = model_dict.get('scaler', None)
+
+    if iso_forest is None or scaler is None:
+        st.warning(f"Modèles ou scaler manquants pour {model_name}")
+        return
+
+    # Colonne à traiter : '7001Taux 2'
+    colonne = '7001Taux 2'
+
+    # Créer une colonne 'is_nan' pour signaler les NaN, mais NE PAS remplacer les NaN par 0
+    df['is_nan'] = df[colonne].isna().astype(int)
+
+    # Filtrer les lignes où la colonne '7001Taux 2' n'est pas NaN (ignorer les lignes avec NaN)
+    df_non_nan = df[df[colonne].notna()].copy()
+
+    if df_non_nan.empty:
+        st.write(f"Aucune donnée valide à traiter pour le modèle {model_name}.")
+        return
+
+    # Vérifier les colonnes que le scaler a vues lors de l'entraînement
+    scaler_features = scaler.feature_names_in_
+
+    # Ajouter les colonnes manquantes dans les données test si elles sont présentes dans le scaler
+    for feature in scaler_features:
+        if feature not in df_non_nan.columns:
+            df_non_nan[feature] = 0  # ou np.nan selon ce qui est approprié
+
+    # Filtrer les colonnes de df_non_nan pour correspondre exactement aux colonnes vues par le scaler
+    df_scaled = df_non_nan[scaler_features]
+
+    try:
+        # Transformer les données avec le scaler
+        X_scaled_test = scaler.transform(df_scaled)
+
+        # Appliquer Isolation Forest pour prédire les anomalies
+        df_non_nan['Anomaly_IF'] = iso_forest.predict(X_scaled_test)
+        df_non_nan['Anomaly_IF'] = df_non_nan['Anomaly_IF'].map({1: 0, -1: 1})  # -1 = anomalie, 1 = normal
+
+        # Réintégrer les résultats dans le DataFrame original
+        df['Anomaly_IF'] = np.nan  # Initialiser avec NaN
+        df.loc[df_non_nan.index, 'Anomaly_IF'] = df_non_nan['Anomaly_IF']
+
+        # Ajouter les anomalies dans le rapport
+        for index in df_non_nan.index:
+            if df_non_nan.loc[index, 'Anomaly_IF'] == 1:
+                anomalies_report.setdefault(index, set()).add(model_name)
+                model_anomalies[model_name] = model_anomalies.get(model_name, 0) + 1
+
+    except ValueError as e:
+        st.error(f"Erreur lors de la transformation des données avec le scaler : {e}")
+
+def process_7002(df, model_name, info, anomalies_report, model_anomalies):
+    # Charger les modèles et scalers
+    model_dict = load_model(info)
+    iso_forest = model_dict.get('iso_forest', None)
+    lof = model_dict.get('lof', None)
+    scaler = model_dict.get('scaler', None)
+
+    if iso_forest is None or lof is None or scaler is None:
+        st.warning(f"Modèles ou scaler manquants pour {model_name}")
+        return
+
+    # Colonne à traiter : '7002Taux 2'
+    colonne = '7002Taux 2'
+
+    # Créer une colonne 'is_nan' pour signaler les NaN, mais NE PAS remplacer les NaN par 0
+    df['is_nan'] = df[colonne].isna().astype(int)
+
+    # Filtrer les lignes où la colonne '7002Taux 2' n'est pas NaN (ignorer les lignes avec NaN)
+    df_non_nan = df[df[colonne].notna()].copy()
+
+    if df_non_nan.empty:
+        st.write(f"Aucune donnée valide à traiter pour le modèle {model_name}.")
+        return
+
+    # Vérifier les colonnes que le scaler a vues lors de l'entraînement
+    scaler_features = scaler.feature_names_in_ if hasattr(scaler, 'feature_names_in_') else []
+
+    # Construire les colonnes à passer au scaler
+    features_to_scale = [colonne]  # Commencer avec la colonne de données
+    if 'is_nan' in scaler_features:
+        features_to_scale.append('is_nan')
+
+    # Standardiser les données non-NaN en utilisant le scaler sauvegardé
+    try:
+        X_scaled_test = scaler.transform(df_non_nan[features_to_scale])
+
+        # Appliquer Isolation Forest pour détecter les anomalies
+        df_non_nan['Anomaly_IF'] = iso_forest.predict(X_scaled_test)
+        df_non_nan['Anomaly_IF'] = df_non_nan['Anomaly_IF'].map({1: 0, -1: 1})  # -1 = anomalie, 1 = normal
+
+        # Appliquer LOF pour détecter les anomalies
+        df_non_nan['Anomaly_LOF'] = lof.fit_predict(X_scaled_test)
+        df_non_nan['Anomaly_LOF'] = df_non_nan['Anomaly_LOF'].map({1: 0, -1: 1})  # -1 = anomalie, 1 = normal
+
+        # Combiner les résultats : une anomalie est détectée si l'un ou l'autre modèle la marque comme telle
+        df_non_nan['Combined_Anomaly'] = np.where(
+            (df_non_nan['Anomaly_IF'] == 1) | (df_non_nan['Anomaly_LOF'] == 1), 1, 0
+        )
+
+        # Réintégrer les résultats d'anomalies dans le DataFrame original, en laissant les NaN intacts
+        df['Anomaly_IF'] = np.nan
+        df['Anomaly_LOF'] = np.nan
+        df['Combined_Anomaly'] = np.nan
+
+        df.loc[df_non_nan.index, 'Anomaly_IF'] = df_non_nan['Anomaly_IF']
+        df.loc[df_non_nan.index, 'Anomaly_LOF'] = df_non_nan['Anomaly_LOF']
+        df.loc[df_non_nan.index, 'Combined_Anomaly'] = df_non_nan['Combined_Anomaly']
+
+        # Ajouter les anomalies dans le rapport
+        for index in df_non_nan.index:
+            if df_non_nan.loc[index, 'Combined_Anomaly'] == 1:
+                anomalies_report.setdefault(index, set()).add(model_name)
+                model_anomalies[model_name] = model_anomalies.get(model_name, 0) + 1
+
+    except ValueError as e:
+        st.error(f"Erreur lors de la transformation des données avec le scaler : {e}")
+
 
 
 def detect_anomalies(df):
@@ -271,6 +418,10 @@ def detect_anomalies(df):
     for model_name, info in models_info.items():
         if model_name == '7010':
             process_7010(df, model_name, info, anomalies_report, model_anomalies)
+        elif model_name == '7001':
+            process_7001(df, model_name, info, anomalies_report, model_anomalies)
+        elif model_name == '7002':  # Ajout de 7002
+            process_7002(df, model_name, info, anomalies_report, model_anomalies)
         else:
             process_model(df, model_name, info, anomalies_report, model_anomalies)
 
@@ -291,6 +442,7 @@ def detect_anomalies(df):
         report_content.append(f"Matricule {matricule} : anomalie dans les cotisations {', '.join(sorted(models))}\n")
 
     return "\n".join(report_content)
+
 
 # Exemple d'application avec un fichier CSV uploadé
 csv_upload = st.file_uploader("Entrez votre bulletin de paie (Format csv)", type=['csv'])
